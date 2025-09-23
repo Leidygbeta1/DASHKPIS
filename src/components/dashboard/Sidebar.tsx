@@ -6,9 +6,8 @@ const Sidebar: React.FC = () => {
   
   const menuItems = [
     { name: 'Dashboard', icon: '📊', path: '/' },
-    { name: 'Ventas', icon: '💰', path: '/ventas' },
-    { name: 'Clientes', icon: '👥', path: '/clientes' },
-    { name: 'Productos', icon: '📦', path: '/productos' },
+    { name: 'KPI', icon: '💰', path: '/ventas' },
+    { name: 'Tareas', icon: '👥', path: '/clientes' },
     { name: 'Reportes', icon: '📈', path: '/reportes' },
     { name: 'Configuración', icon: '⚙️', path: '/configuracion' },
   ];
