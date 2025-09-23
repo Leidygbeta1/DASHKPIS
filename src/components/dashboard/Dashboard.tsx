@@ -19,6 +19,7 @@ const Dashboard: React.FC = () => {
       change: 8.2,
       icon: '👥',
       color: 'bg-blue-500'
+      // hola
     },
     {
       title: 'Pedidos',
