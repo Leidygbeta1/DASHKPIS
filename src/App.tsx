@@ -1,12 +1,14 @@
-import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
-import Login from './pages/Login';
-import DashboardLayout from './layouts/DashboardLayout';
-import DashboardHome from './pages/DashboardHome';
-import Kpi from './pages/KPI';
-import Tarea from './pages/Tarea';
-import Reportes from './pages/Reportes';
-import Configuracion from './pages/Configuracion';
+import React from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import ForgotPassword from "./pages/ForgotPassword"; 
+import DashboardLayout from "./layouts/DashboardLayout";
+import DashboardHome from "./pages/DashboardHome";
+import Kpi from "./pages/KPI";
+import Tarea from "./pages/Tarea";
+import Reportes from "./pages/Reportes";
+import Configuracion from "./pages/Configuracion";
 
 const App: React.FC = () => {
   return (
@@ -14,6 +16,8 @@ const App: React.FC = () => {
       {/* Inicio → login */}
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} /> 
 
       {/* Rutas del dashboard */}
       <Route path="/dashboard" element={<DashboardLayout />}>
