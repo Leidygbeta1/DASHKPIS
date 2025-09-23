@@ -1,15 +1,43 @@
-# React + TypeScript + Vite
+# DASHKAPIS 📊
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Un dashboard moderno de KPIs desarrollado con React, TypeScript, Tailwind CSS y React Router.
 
-Currently, two official plugins are available:
+## 🚀 Tecnologías Utilizadas
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **React 18** con TypeScript
+- **Vite** como build tool
+- **Tailwind CSS v4** para estilos
+- **React Router DOM** para navegación
+- **ESLint** para linting
 
-## Expanding the ESLint configuration
+## 📋 Requisitos Previos
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- Node.js 18+ 
+- npm o yarn
+- Git
+
+## ⚡ Instalación y Configuración
+
+1. **Clonar el repositorio:**
+   ```bash
+   git clone https://github.com/Leidygbeta1/DASHKPIS.git
+   cd DASHKPIS
+   ```
+
+2. **Instalar dependencias:**
+   ```bash
+   npm install
+   ```
+
+3. **Ejecutar en modo desarrollo:**
+   ```bash
+   npm run dev
+   ```
+
+4. **Compilar para producción:**
+   ```bash
+   npm run build
+   ```
 
 ```js
 export default defineConfig([
