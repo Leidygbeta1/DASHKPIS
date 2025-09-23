@@ -1,29 +1,33 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import Header from './components/dashboard/Header';
-import Sidebar from './components/dashboard/Sidebar';
+import React from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import Login from './pages/Login';
+import DashboardLayout from './layouts/DashboardLayout';
 import DashboardHome from './pages/DashboardHome';
-import Ventas from './pages/Ventas';
-import Clientes from './pages/Clientes';
-import './App.css';
+import Kpi from './pages/KPI';
+import Tarea from './pages/Tarea';
+import Reportes from './pages/Reportes';
+import Configuracion from './pages/Configuracion';
 
-function App() {
+const App: React.FC = () => {
   return (
-    <Router>
-      <div className="min-h-screen bg-gray-50 flex">
-        <Sidebar />
-        <div className="flex-1 flex flex-col">
-          <Header />
-          <main className="flex-1">
-            <Routes>
-              <Route path="/" element={<DashboardHome />} />
-              <Route path="/ventas" element={<Ventas />} />
-              <Route path="/clientes" element={<Clientes />} />
-            </Routes>
-          </main>
-        </div>
-      </div>
-    </Router>
-  );
-}
+    <Routes>
+      {/* Inicio → login */}
+      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/login" element={<Login />} />
 
-export default App
+      {/* Rutas del dashboard */}
+      <Route path="/dashboard" element={<DashboardLayout />}>
+        <Route index element={<DashboardHome />} />
+        <Route path="kpi" element={<Kpi />} />
+        <Route path="tarea" element={<Tarea />} />
+        <Route path="reportes" element={<Reportes />} />
+        <Route path="configuracion" element={<Configuracion />} />
+      </Route>
+
+      {/* Cualquier otra → login */}
+      <Route path="*" element={<Navigate to="/login" replace />} />
+    </Routes>
+  );
+};
+
+export default App;
