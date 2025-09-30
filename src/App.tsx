@@ -6,6 +6,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import DashboardLayout from "./layouts/DashboardLayout";
 import DashboardHome from "./pages/DashboardHome";
 import Kpi from "./pages/KPI";
+import Proyectos from "./pages/Proyectos";
 import Tarea from "./pages/Tarea";
 import Reportes from "./pages/Reportes";
 import Configuracion from "./pages/Configuracion";
@@ -21,7 +22,8 @@ const App: React.FC = () => {
 
       {/* Rutas del dashboard */}
       <Route path="/dashboard" element={<DashboardLayout />}>
-        <Route index element={<DashboardHome />} />
+  <Route index element={<DashboardHome />} />
+  <Route path="proyectos" element={<Proyectos />} />
         <Route path="kpi" element={<Kpi />} />
         <Route path="tarea" element={<Tarea />} />
         <Route path="reportes" element={<Reportes />} />

@@ -10,6 +10,11 @@ const Sidebar: React.FC<Props> = ({ onNavigate, className }) => {
         <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" className="fill-current"/>
       </svg>
     )},
+    { name: 'Proyectos', path: '/dashboard/proyectos', end: false, icon: (
+      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
+        <path d="M3 7h18M3 12h18M3 17h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+      </svg>
+    )},
     { name: 'KPI', path: '/dashboard/kpi', end: false, icon: (
       <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
         <path d="M4 13l4-4 4 4 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>

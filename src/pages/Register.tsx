@@ -1,24 +1,19 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-
-interface User {
-  username: string;
-  email: string;
-}
-
-const mockUsers: User[] = [{ username: "admin", email: "admin@dashkpis.test" }];
+import { apiRegister } from "../services/auth";
 
 const Register: React.FC = () => {
   const navigate = useNavigate();
 
   const [fullName, setFullName] = useState("");
-  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [role, setRole] = useState<"PM" | "Colaborador" | "Stakeholder">("Colaborador");
 
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  const [loading, setLoading] = useState(false);
 
   // 👇 Animación de entrada
   const [showForm, setShowForm] = useState(false);
@@ -38,12 +33,11 @@ const Register: React.FC = () => {
     setErrorMsg("");
     setSuccessMsg("");
 
-    const missing: string[] = [];
-    if (!fullName.trim()) missing.push("Nombre completo");
-    if (!username.trim()) missing.push("Nombre de usuario");
-    if (!email.trim()) missing.push("Correo");
-    if (!password.trim()) missing.push("Contraseña");
-    if (!confirmPassword.trim()) missing.push("Confirmación de contraseña");
+  const missing: string[] = [];
+  if (!fullName.trim()) missing.push("Nombre completo");
+  if (!email.trim()) missing.push("Correo");
+  if (!password.trim()) missing.push("Contraseña");
+  if (!confirmPassword.trim()) missing.push("Confirmación de contraseña");
 
     if (missing.length > 0) {
       setErrorMsg("Completar el campo: " + missing.join(", "));
@@ -68,17 +62,18 @@ const Register: React.FC = () => {
       return;
     }
 
-    const exists = mockUsers.some(
-      (u) => u.username === username || u.email === email
-    );
-    if (exists) {
-      setErrorMsg("El usuario ya existe o el correo ya está en uso.");
-      return;
-    }
-
-    mockUsers.push({ username, email });
-    setSuccessMsg("Registro exitoso. Ahora puedes iniciar sesión.");
-    setTimeout(() => navigate("/login"), 2000);
+    // Llamar a API backend
+    setLoading(true);
+    apiRegister({ email: email.trim(), password, rol: role })
+      .then(() => {
+        setSuccessMsg("Registro exitoso. Ahora puedes iniciar sesión.");
+        setTimeout(() => navigate("/login"), 1500);
+      })
+      .catch((err: any) => {
+        const msg = (err?.message || "Error al registrar").trim();
+        setErrorMsg(msg);
+      })
+      .finally(() => setLoading(false));
   };
 
   return (
@@ -117,18 +112,20 @@ const Register: React.FC = () => {
             />
           </div>
 
-          {/* Nombre de usuario */}
+          {/* Rol */}
           <div>
             <label className="block text-sm font-medium text-slate-700">
-              Nombre de usuario
+              Rol
             </label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value as any)}
               className="mt-1 block w-full rounded-md border border-gray-300 focus:border-blue-600 focus:ring-blue-600 py-2 px-3 text-sm"
-              required
-            />
+            >
+              <option value="PM">PM</option>
+              <option value="Colaborador">Colaborador</option>
+              <option value="Stakeholder">Stakeholder</option>
+            </select>
           </div>
 
           {/* Correo */}
@@ -188,9 +185,12 @@ const Register: React.FC = () => {
           {/* Botón principal */}
           <button
             type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg py-2.5 transition-colors"
+            disabled={loading}
+            className={`w-full text-white font-medium rounded-lg py-2.5 transition-colors ${
+              loading ? "bg-blue-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
+            }`}
           >
-            Registrarse
+            {loading ? "Registrando…" : "Registrarse"}
           </button>
 
           {/* Link para ir a login */}

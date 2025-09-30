@@ -1,76 +1,38 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { fetchUsuarios, type UsuarioLite, fetchProyectos, type Proyecto } from '../services/projects';
+import {
+  fetchTareasByProyecto,
+  createTarea,
+  updateTarea,
+  assignTarea,
+  changeDueDate,
+  addTiempo,
+  completeTarea,
+  deleteTarea,
+  setTareaProgress,
+  listTiempo,
+  type Tarea as ApiTarea,
+} from '../services/tasks';
+import { getCurrentUser } from '../services/session';
 
 type Priority = 'Alta' | 'Media' | 'Baja';
 type Status = 'Activa' | 'Completada';
 type ViewMode = 'lista' | 'tarjetas';
 
-type User = { id: string; nombre: string; avatar: string };
-type Project = { id: string; nombre: string; color: string };
 type TimeLog = { id: string; horas: number; nota?: string; fecha: string };
-
-type Task = {
-  id: string;
+type TaskUI = {
+  id: number; // id_tarea
   titulo: string;
-  descripcion?: string;
+  descripcion?: string | null;
   status: Status;
   prioridad: Priority;
   progreso: number; // 0..100
-  vencimiento?: string; // ISO date
-  asignadoA?: string; // userId
-  proyectoId?: string; // projectId
+  vencimiento?: string | null; // ISO date (yyyy-mm-dd)
+  asignadoA?: number | null; // id_usuario
+  proyectoId?: number; // id_proyecto
   tiempo: TimeLog[];
+  totalHoras?: number; // total persistido en DB
 };
-
-const users: User[] = [
-  { id: 'u1', nombre: 'Leidy', avatar: 'https://i.pravatar.cc/40?img=5' },
-  { id: 'u2', nombre: 'Nicolás', avatar: 'https://i.pravatar.cc/40?img=1' },
-  { id: 'u3', nombre: 'Carolina', avatar: 'https://i.pravatar.cc/40?img=12' },
-];
-
-const projects: Project[] = [
-  { id: 'p1', nombre: 'Proyecto A', color: 'bg-blue-100 text-blue-700' },
-  { id: 'p2', nombre: 'Proyecto B', color: 'bg-emerald-100 text-emerald-700' },
-  { id: 'p3', nombre: 'Proyecto C', color: 'bg-amber-100 text-amber-700' },
-];
-
-const initialTasks: Task[] = [
-  {
-    id: 't1',
-    titulo: 'Diseñar tablero principal',
-    descripcion: 'Estructura inicial y componentes base',
-    status: 'Activa',
-    prioridad: 'Alta',
-    progreso: 45,
-    vencimiento: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10),
-    asignadoA: 'u1',
-    proyectoId: 'p1',
-    tiempo: [{ id: 'tl1', horas: 2, fecha: new Date().toISOString(), nota: 'Wireframes' }],
-  },
-  {
-    id: 't2',
-    titulo: 'Crear KPIs iniciales',
-    descripcion: 'Ventas, Clientes y Tasa de conversión',
-    status: 'Activa',
-    prioridad: 'Media',
-    progreso: 20,
-    vencimiento: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
-    asignadoA: 'u2',
-    proyectoId: 'p1',
-    tiempo: [],
-  },
-  {
-    id: 't3',
-    titulo: 'Refinar estilos y tipografías',
-    descripcion: 'Alinear con guía visual',
-    status: 'Completada',
-    prioridad: 'Baja',
-    progreso: 100,
-    vencimiento: new Date().toISOString().slice(0, 10),
-    asignadoA: 'u3',
-    proyectoId: 'p2',
-    tiempo: [{ id: 'tl2', horas: 1.5, fecha: new Date().toISOString() }],
-  },
-];
 
 const prioridadBadge: Record<Priority, string> = {
   Alta: 'bg-rose-100 text-rose-700',
@@ -83,12 +45,12 @@ const statusBadge: Record<Status, string> = {
   Completada: 'bg-gray-100 text-gray-600',
 };
 
-const Avatar: React.FC<{ userId?: string }> = ({ userId }) => {
-  const u = users.find((x) => x.id === userId);
+const Avatar: React.FC<{ userId?: number | null; users?: UsuarioLite[] }> = ({ userId, users }) => {
+  const u = users?.find((x) => x.id_usuario === userId);
   return (
     <div className="flex items-center gap-2">
-      <img className="w-7 h-7 rounded-full ring-1 ring-gray-200" src={u?.avatar ?? 'https://i.pravatar.cc/40?u=anon'} alt={u?.nombre ?? 'Sin asignar'} />
-      <span className="text-sm text-gray-700">{u?.nombre ?? 'Sin asignar'}</span>
+      <img className="w-7 h-7 rounded-full ring-1 ring-gray-200" src={`https://i.pravatar.cc/40?u=${u?.email ?? 'anon'}`} alt={u?.nombre ?? u?.email ?? 'Sin asignar'} />
+      <span className="text-sm text-gray-700">{u?.nombre ?? u?.email ?? 'Sin asignar'}</span>
     </div>
   );
 };
@@ -107,18 +69,109 @@ const EmptyState: React.FC<{ text: string }> = ({ text }) => (
 );
 
 const Tarea: React.FC = () => {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [tasks, setTasks] = useState<TaskUI[]>([]);
   const [query, setQuery] = useState('');
   const [statusF, setStatusF] = useState<'Todas' | Status>('Todas');
   const [prioridadF, setPrioridadF] = useState<'Todas' | Priority>('Todas');
-  const [proyectoF, setProyectoF] = useState<'Todos' | string>('Todos');
-  const [asignadoF, setAsignadoF] = useState<'Todos' | string>('Todos');
+  const [proyectoF, setProyectoF] = useState<'Todos' | number>('Todos');
+  const [asignadoF, setAsignadoF] = useState<'Todos' | number>('Todos');
   const [vista, setVista] = useState<ViewMode>('lista');
 
   const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState<Task | null>(null);
-  const [detalles, setDetalles] = useState<Task | null>(null);
-  const [confirmDel, setConfirmDel] = useState<Task | null>(null);
+  const [editing, setEditing] = useState<TaskUI | null>(null);
+  const [detalles, setDetalles] = useState<TaskUI | null>(null);
+  const [confirmDel, setConfirmDel] = useState<TaskUI | null>(null);
+
+  const [users, setUsers] = useState<UsuarioLite[]>([]);
+  const [projects, setProjects] = useState<Proyecto[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [focusTiempo, setFocusTiempo] = useState(false);
+  const timeHorasRef = useRef<HTMLInputElement | null>(null);
+  const progressTimers = useRef<Record<number, number>>({});
+  // Filtro para historial de tiempo en el panel de detalles
+  const [tiempoFiltro, setTiempoFiltro] = useState<{ modo: 'hoy' | 'rango' | 'todo'; desde?: string; hasta?: string }>({ modo: 'hoy' });
+
+  // helpers
+  const mapApiTareaToUI = (t: ApiTarea): TaskUI => ({
+    id: t.id_tarea,
+    titulo: t.titulo,
+    descripcion: t.descripcion ?? null,
+    status: t.estado === 'Completada' ? 'Completada' : 'Activa',
+    prioridad: (t.prioridad as Priority) || 'Media',
+    progreso: Number(t.progreso ?? 0),
+    vencimiento: t.fecha_vencimiento ?? null,
+    asignadoA: t.id_usuario_asignado ?? null,
+    proyectoId: t.id_proyecto,
+    tiempo: [], // loaded on-demand when adding time (we don't have history endpoint yet)
+    totalHoras: (t as any).total_horas ?? 0,
+  });
+
+  const reloadAll = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [us, pr] = await Promise.all([fetchUsuarios(), fetchProyectos()]);
+      setUsers(us);
+      setProjects(pr);
+      // If a project filter already selected, load tasks for it; else try first project
+      const pid = proyectoF === 'Todos' ? pr[0]?.id_proyecto : proyectoF;
+      if (pid) {
+        const arr = await fetchTareasByProyecto(pid as number);
+        setTasks(arr.map(mapApiTareaToUI));
+        setProyectoF(pid as number);
+      } else {
+        setTasks([]);
+      }
+    } catch (e: any) {
+      setError(e?.message || 'Error al cargar datos');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    reloadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Enfocar el input de horas cuando se abre el panel de detalles por la acción "Tiempo"
+  useEffect(() => {
+    if (detalles && focusTiempo) {
+      const t = setTimeout(() => {
+        timeHorasRef.current?.focus();
+        timeHorasRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setFocusTiempo(false);
+      }, 50);
+      return () => clearTimeout(t);
+    }
+  }, [detalles, focusTiempo]);
+
+  // Cargar historial de tiempo al abrir el panel y cuando cambie el filtro
+  useEffect(() => {
+    const loadLogs = async () => {
+      if (!detalles) return;
+      try {
+        let logs;
+        if (tiempoFiltro.modo === 'hoy') {
+          const ymd = new Date().toISOString().slice(0, 10);
+          logs = await listTiempo(detalles.id, { fecha: ymd });
+        } else if (tiempoFiltro.modo === 'rango') {
+          logs = await listTiempo(detalles.id, { desde: tiempoFiltro.desde, hasta: tiempoFiltro.hasta });
+        } else {
+          logs = await listTiempo(detalles.id);
+        }
+        const mapped: TimeLog[] = logs.map((l) => ({ id: String(l.id_registro), horas: l.horas, nota: l.nota, fecha: l.fecha_registro }));
+        setTasks((prev) => prev.map((x) => (x.id === detalles.id ? { ...x, tiempo: mapped } : x)));
+        setDetalles({ ...detalles, tiempo: mapped });
+      } catch (er) {
+        // evitar ruido si no hay datos
+        console.warn('No se pudo cargar el historial de tiempo');
+      }
+    };
+    loadLogs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detalles?.id, tiempoFiltro.modo, tiempoFiltro.desde, tiempoFiltro.hasta]);
 
   // NUEVO: control del panel de filtros en móvil
   const [showFilters, setShowFilters] = useState(false);
@@ -132,11 +185,11 @@ const Tarea: React.FC = () => {
       .filter((t) => t.titulo.toLowerCase().includes(query.toLowerCase()) || (t.descripcion ?? '').toLowerCase().includes(query.toLowerCase()));
   }, [tasks, query, statusF, prioridadF, proyectoF, asignadoF]);
 
-  const totalHoras = (t: Task) => t.tiempo.reduce((acc, x) => acc + x.horas, 0);
+  const totalHoras = (t: TaskUI) => (typeof t.totalHoras === 'number' ? t.totalHoras : t.tiempo.reduce((acc: number, x: TimeLog) => acc + x.horas, 0));
 
   const openCreate = () => {
     setEditing({
-      id: `tmp-${Date.now()}`,
+      id: -1,
       titulo: '',
       descripcion: '',
       status: 'Activa',
@@ -150,49 +203,168 @@ const Tarea: React.FC = () => {
     setShowForm(true);
   };
 
-  const openEdit = (t: Task) => {
+  const openEdit = (t: TaskUI) => {
     setEditing({ ...t });
     setShowForm(true);
   };
 
-  const saveTask = () => {
+  const saveTask = async () => {
     if (!editing) return;
-    setTasks((prev) => {
-      const exists = prev.some((x) => x.id === editing.id && !editing.id.startsWith('tmp-'));
-      if (exists) return prev.map((x) => (x.id === editing.id ? editing : x));
-      const newId = `t${prev.length + 1}`;
-      return [...prev, { ...editing, id: newId }];
-    });
-    setShowForm(false);
-    setEditing(null);
+    setLoading(true);
+    setError(null);
+    try {
+      if (editing.id === -1) {
+        // create
+        if (!editing.proyectoId) throw new Error('Seleccione un proyecto');
+        const created = await createTarea({
+          id_proyecto: editing.proyectoId,
+          titulo: editing.titulo,
+          descripcion: editing.descripcion || null,
+          fecha_vencimiento: editing.vencimiento || null,
+          id_usuario_asignado: editing.asignadoA ?? null,
+          prioridad: editing.prioridad,
+        });
+        const ui = mapApiTareaToUI(created);
+        // Apply desired progress locally (backend doesn't expose endpoint for partial progress yet)
+        ui.progreso = editing.progreso;
+        ui.status = ui.progreso >= 100 ? 'Completada' : 'Activa';
+        setTasks((prev) => [ui, ...prev]);
+        // Persist progress if not default
+        if (typeof editing.progreso === 'number') {
+          try {
+            const apiProg = await setTareaProgress(ui.id, editing.progreso);
+            const uiProg = mapApiTareaToUI(apiProg);
+            setTasks((prev) => prev.map((x) => (x.id === uiProg.id ? uiProg : x)));
+          } catch {}
+        }
+      } else {
+        // update
+        if (!editing.proyectoId) throw new Error('Seleccione un proyecto');
+        const updated = await updateTarea(editing.id, {
+          id_proyecto: editing.proyectoId,
+          titulo: editing.titulo,
+          descripcion: editing.descripcion || null,
+          fecha_vencimiento: editing.vencimiento || null,
+          id_usuario_asignado: editing.asignadoA ?? null,
+          prioridad: editing.prioridad,
+        });
+        const ui = mapApiTareaToUI(updated);
+        // Preserve progress adjusted in the modal
+        ui.progreso = editing.progreso;
+        ui.status = ui.progreso >= 100 ? 'Completada' : 'Activa';
+        setTasks((prev) => prev.map((x) => (x.id === ui.id ? ui : x)));
+        // Persist progress change from modal
+        if (typeof editing.progreso === 'number') {
+          try {
+            const apiProg = await setTareaProgress(ui.id, editing.progreso);
+            const uiProg = mapApiTareaToUI(apiProg);
+            setTasks((prev) => prev.map((x) => (x.id === uiProg.id ? uiProg : x)));
+          } catch {}
+        }
+      }
+      setShowForm(false);
+      setEditing(null);
+    } catch (e: any) {
+      setError(e?.message || 'No se pudo guardar la tarea');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const markDone = (t: Task, done: boolean) => {
-    setTasks((prev) => prev.map((x) => (x.id === t.id ? { ...x, status: done ? 'Completada' : 'Activa', progreso: done ? 100 : x.progreso } : x)));
+  const markDone = async (t: TaskUI, done: boolean) => {
+    setLoading(true);
+    setError(null);
+    try {
+      if (done) {
+        const api = await completeTarea(t.id);
+        const ui = mapApiTareaToUI(api);
+        setTasks((prev) => prev.map((x) => (x.id === ui.id ? ui : x)));
+      } else {
+        // If un-completing, persist progress < 100 to backend using progress endpoint
+        const newProg = Math.min(t.progreso ?? 0, 99);
+        const api = await setTareaProgress(t.id, newProg);
+        const ui = mapApiTareaToUI(api);
+        setTasks((prev) => prev.map((x) => (x.id === ui.id ? ui : x)));
+      }
+    } catch (e: any) {
+      setError(e?.message || 'No se pudo actualizar la tarea');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const changeDue = (t: Task, date?: string) => {
-    setTasks((prev) => prev.map((x) => (x.id === t.id ? { ...x, vencimiento: date } : x)));
+  const changeDue = async (t: TaskUI, date?: string) => {
+    try {
+      const api = await changeDueDate(t.id, date || null);
+      const ui = mapApiTareaToUI(api);
+      // Preserve current progress/status; backend doesn't modify these on due date change
+      ui.progreso = t.progreso;
+      ui.status = t.status;
+      setTasks((prev) => prev.map((x) => (x.id === ui.id ? ui : x)));
+    } catch (e: any) {
+      setError(e?.message || 'No se pudo cambiar la fecha');
+    }
   };
 
-  const assignTo = (t: Task, userId?: string) => {
-    setTasks((prev) => prev.map((x) => (x.id === t.id ? { ...x, asignadoA: userId } : x)));
+  const assignTo = async (t: TaskUI, userId?: number | null): Promise<TaskUI> => {
+    try {
+      const api = await assignTarea(t.id, userId ?? null);
+      const ui = mapApiTareaToUI(api);
+      // Preserve progress/status; backend doesn't modify them here
+      ui.progreso = t.progreso;
+      ui.status = t.status;
+      setTasks((prev) => prev.map((x) => (x.id === ui.id ? ui : x)));
+      return ui;
+    } catch (e: any) {
+      setError(e?.message || 'No se pudo asignar');
+      return t;
+    }
   };
 
-  const assignProject = (t: Task, projectId?: string) => {
-    setTasks((prev) => prev.map((x) => (x.id === t.id ? { ...x, proyectoId: projectId } : x)));
+  const assignProject = async (t: TaskUI, projectId?: number) => {
+    try {
+      if (!projectId) return;
+      const api = await updateTarea(t.id, {
+        id_proyecto: projectId,
+        titulo: t.titulo,
+        descripcion: t.descripcion || null,
+        fecha_vencimiento: t.vencimiento || null,
+      });
+      const ui = mapApiTareaToUI(api);
+      // Preserve existing progress/status when only changing project
+      ui.progreso = t.progreso;
+      ui.status = t.status;
+      setTasks((prev) => prev.map((x) => (x.id === ui.id ? ui : x)));
+    } catch (e: any) {
+      setError(e?.message || 'No se pudo mover de proyecto');
+    }
   };
 
-  const addTime = (t: Task, horas: number, nota?: string) => {
+  const addTimeLocalAndApi = async (t: TaskUI, horas: number, nota?: string) => {
     if (!horas || horas <= 0) return;
-    const log: TimeLog = { id: `log-${Date.now()}`, horas, nota, fecha: new Date().toISOString() };
-    setTasks((prev) => prev.map((x) => (x.id === t.id ? { ...x, tiempo: [...x.tiempo, log] } : x)));
+    const me = getCurrentUser();
+    if (!me) {
+      setError('Inicia sesión para registrar tiempo');
+      return;
+    }
+    try {
+  const r = await addTiempo(t.id, me.id_usuario, horas, nota);
+      const log: TimeLog = { id: `log-${Date.now()}`, horas, nota, fecha: new Date().toISOString() };
+  setTasks((prev) => prev.map((x) => (x.id === t.id ? { ...x, tiempo: [...x.tiempo, log], totalHoras: r.total_horas } : x)));
+    } catch (e: any) {
+      setError(e?.message || 'No se pudo registrar tiempo');
+    }
   };
 
-  const deleteTask = (t: Task) => {
-    setTasks((prev) => prev.filter((x) => x.id !== t.id));
-    setConfirmDel(null);
-    if (detalles?.id === t.id) setDetalles(null);
+  const deleteTaskUI = async (t: TaskUI) => {
+    try {
+      await deleteTarea(t.id);
+      setTasks((prev) => prev.filter((x) => x.id !== t.id));
+      setConfirmDel(null);
+      if (detalles?.id === t.id) setDetalles(null);
+    } catch (e: any) {
+      setError(e?.message || 'No se pudo eliminar');
+    }
   };
 
   return (
@@ -286,20 +458,38 @@ const Tarea: React.FC = () => {
             <option value="Baja">Baja</option>
           </select>
 
-          <select value={proyectoF} onChange={(e) => setProyectoF(e.target.value)} className="rounded-lg border-gray-200">
+          <select
+            value={proyectoF}
+            onChange={async (e) => {
+              const val = e.target.value === 'Todos' ? 'Todos' : Number(e.target.value);
+              setProyectoF(val as any);
+              if (val !== 'Todos') {
+                try {
+                  setLoading(true);
+                  const arr = await fetchTareasByProyecto(val as number);
+                  setTasks(arr.map(mapApiTareaToUI));
+                } catch (er: any) {
+                  setError(er?.message || 'No se pudieron cargar tareas');
+                } finally {
+                  setLoading(false);
+                }
+              }
+            }}
+            className="rounded-lg border-gray-200"
+          >
             <option value="Todos">Proyecto: Todos</option>
             {projects.map((p) => (
-              <option key={p.id} value={p.id}>
+              <option key={p.id_proyecto} value={p.id_proyecto}>
                 {p.nombre}
               </option>
             ))}
           </select>
 
-          <select value={asignadoF} onChange={(e) => setAsignadoF(e.target.value)} className="rounded-lg border-gray-200">
+          <select value={asignadoF} onChange={(e) => setAsignadoF(e.target.value === 'Todos' ? 'Todos' : Number(e.target.value))} className="rounded-lg border-gray-200">
             <option value="Todos">Asignado: Todos</option>
             {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.nombre}
+              <option key={u.id_usuario} value={u.id_usuario}>
+                {u.nombre ?? u.email}
               </option>
             ))}
           </select>
@@ -342,7 +532,7 @@ const Tarea: React.FC = () => {
             </thead>
             <tbody>
               {filtered.map((t) => {
-                const proj = projects.find((p) => p.id === t.proyectoId);
+                const proj = projects.find((p) => p.id_proyecto === t.proyectoId);
                 return (
                   <tr key={t.id} className="border-t border-gray-100 hover:bg-gray-50">
                     <td className="px-4 py-3">
@@ -355,10 +545,10 @@ const Tarea: React.FC = () => {
                       {t.descripcion && <div className="text-gray-500">{t.descripcion}</div>}
                     </td>
                     <td className="px-4 py-3">
-                      {proj ? <span className={`text-xs px-2 py-1 rounded ${proj.color}`}>{proj.nombre}</span> : <span className="text-gray-400 text-xs">Sin proyecto</span>}
+                      {proj ? <span className={`text-xs px-2 py-1 rounded bg-gray-100 text-gray-700`}>{proj.nombre}</span> : <span className="text-gray-400 text-xs">Sin proyecto</span>}
                     </td>
                     <td className="px-4 py-3">
-                      <Avatar userId={t.asignadoA} />
+                      <Avatar userId={t.asignadoA} users={users} />
                     </td>
                     <td className="px-4 py-3">{t.vencimiento ? new Date(t.vencimiento).toLocaleDateString() : <span className="text-gray-400">—</span>}</td>
                     <td className="px-4 py-3">
@@ -378,6 +568,15 @@ const Tarea: React.FC = () => {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => {
+                            setDetalles(t);
+                            setFocusTiempo(true);
+                          }}
+                          className="px-2 py-1 rounded border border-gray-200 hover:bg-gray-50"
+                        >
+                          Tiempo
+                        </button>
                         <button onClick={() => openEdit(t)} className="px-2 py-1 rounded border border-gray-200 hover:bg-gray-50">
                           Editar
                         </button>
@@ -396,7 +595,7 @@ const Tarea: React.FC = () => {
         // GRID de tarjetas: ajusta gaps y columnas responsivas
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((t) => {
-            const proj = projects.find((p) => p.id === t.proyectoId);
+            const proj = projects.find((p) => p.id_proyecto === t.proyectoId);
             return (
               <div key={t.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
                 <div className="flex items-start justify-between">
@@ -410,7 +609,7 @@ const Tarea: React.FC = () => {
                 </div>
                 {t.descripcion && <p className="mt-2 text-gray-600 text-sm">{t.descripcion}</p>}
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-                  {proj && <span className={`text-xs px-2 py-1 rounded ${proj.color}`}>{proj.nombre}</span>}
+                  {proj && <span className={`text-xs px-2 py-1 rounded bg-gray-100 text-gray-700`}>{proj.nombre}</span>}
                   <span className="text-gray-500">{t.vencimiento ? new Date(t.vencimiento).toLocaleDateString() : 'Sin fecha'}</span>
                 </div>
                 <div className="mt-3 flex items-center gap-2">
@@ -420,8 +619,17 @@ const Tarea: React.FC = () => {
                   <span className="text-sm text-gray-700">{t.progreso}%</span>
                 </div>
                 <div className="mt-3 flex items-center justify-between">
-                  <Avatar userId={t.asignadoA} />
+                  <Avatar userId={t.asignadoA} users={users} />
                   <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setDetalles(t);
+                        setFocusTiempo(true);
+                      }}
+                      className="px-2 py-1 rounded border border-gray-200 hover:bg-gray-50 text-sm"
+                    >
+                      Tiempo
+                    </button>
                     <button onClick={() => openEdit(t)} className="px-2 py-1 rounded border border-gray-200 hover:bg-gray-50 text-sm">
                       Editar
                     </button>
@@ -441,7 +649,7 @@ const Tarea: React.FC = () => {
         <div className="fixed inset-0 z-40 bg-black/30 flex items-center justify-center p-4" onClick={() => setShowForm(false)}>
           <div className="bg-white w-full max-w-2xl rounded-2xl shadow-xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">{editing.id.startsWith('tmp-') ? 'Crear tarea' : 'Editar tarea'}</h3>
+              <h3 className="text-lg font-semibold text-gray-900">{editing.id === -1 ? 'Crear tarea' : 'Editar tarea'}</h3>
               <button onClick={() => setShowForm(false)} className="text-gray-500 hover:text-gray-700">✕</button>
             </div>
             <div className="p-6 grid gap-4 md:grid-cols-2">
@@ -451,14 +659,14 @@ const Tarea: React.FC = () => {
               </div>
               <div className="md:col-span-2">
                 <label className="text-sm font-medium text-gray-700">Descripción</label>
-                <textarea value={editing.descripcion} onChange={(e) => setEditing({ ...editing, descripcion: e.target.value })} className="mt-1 w-full rounded-lg border-gray-200" rows={3} />
+                <textarea value={editing.descripcion ?? ''} onChange={(e) => setEditing({ ...editing, descripcion: e.target.value })} className="mt-1 w-full rounded-lg border-gray-200" rows={3} />
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700">Proyecto</label>
-                <select value={editing.proyectoId ?? ''} onChange={(e) => setEditing({ ...editing, proyectoId: e.target.value || undefined })} className="mt-1 w-full rounded-lg border-gray-200">
+                <select value={editing.proyectoId ?? ''} onChange={(e) => setEditing({ ...editing, proyectoId: e.target.value ? Number(e.target.value) : undefined })} className="mt-1 w-full rounded-lg border-gray-200">
                   <option value="">Sin proyecto</option>
                   {projects.map((p) => (
-                    <option key={p.id} value={p.id}>
+                    <option key={p.id_proyecto} value={p.id_proyecto}>
                       {p.nombre}
                     </option>
                   ))}
@@ -466,11 +674,11 @@ const Tarea: React.FC = () => {
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700">Asignado a</label>
-                <select value={editing.asignadoA ?? ''} onChange={(e) => setEditing({ ...editing, asignadoA: e.target.value || undefined })} className="mt-1 w-full rounded-lg border-gray-200">
+                <select value={editing.asignadoA ?? ''} onChange={(e) => setEditing({ ...editing, asignadoA: e.target.value ? Number(e.target.value) : undefined })} className="mt-1 w-full rounded-lg border-gray-200">
                   <option value="">Sin asignar</option>
                   {users.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.nombre}
+                    <option key={u.id_usuario} value={u.id_usuario}>
+                      {u.nombre ?? u.email}
                     </option>
                   ))}
                 </select>
@@ -494,7 +702,9 @@ const Tarea: React.FC = () => {
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-2">
               <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg border border-gray-200">Cancelar</button>
-              <button onClick={saveTask} className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">Guardar</button>
+              <button onClick={saveTask} className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700" disabled={loading}>
+                {loading ? 'Guardando…' : 'Guardar'}
+              </button>
             </div>
           </div>
         </div>
@@ -525,19 +735,21 @@ const Tarea: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-gray-500 mb-1">Asignado</p>
-                  <Avatar userId={detalles.asignadoA} />
+                  <Avatar userId={detalles.asignadoA} users={users} />
                   <select
                     className="mt-2 w-full rounded-lg border-gray-200"
                     value={detalles.asignadoA ?? ''}
                     onChange={(e) => {
-                      assignTo(detalles, e.target.value || undefined);
-                      setDetalles({ ...detalles, asignadoA: e.target.value || undefined });
+                      const val = e.target.value ? Number(e.target.value) : null;
+                      assignTo(detalles, val).then((ui) => {
+                        setDetalles((prev) => (prev && prev.id === ui.id ? { ...prev, asignadoA: ui.asignadoA ?? undefined } : prev));
+                      });
                     }}
                   >
                     <option value="">Sin asignar</option>
                     {users.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.nombre}
+                      <option key={u.id_usuario} value={u.id_usuario}>
+                        {u.nombre ?? u.email}
                       </option>
                     ))}
                   </select>
@@ -548,13 +760,14 @@ const Tarea: React.FC = () => {
                     className="w-full rounded-lg border-gray-200"
                     value={detalles.proyectoId ?? ''}
                     onChange={(e) => {
-                      assignProject(detalles, e.target.value || undefined);
-                      setDetalles({ ...detalles, proyectoId: e.target.value || undefined });
+                      const val = e.target.value ? Number(e.target.value) : undefined;
+                      if (val) assignProject(detalles, val);
+                      setDetalles({ ...detalles, proyectoId: val });
                     }}
                   >
                     <option value="">Sin proyecto</option>
                     {projects.map((p) => (
-                      <option key={p.id} value={p.id}>
+                      <option key={p.id_proyecto} value={p.id_proyecto}>
                         {p.nombre}
                       </option>
                     ))}
@@ -581,8 +794,23 @@ const Tarea: React.FC = () => {
                     value={detalles.progreso}
                     onChange={(e) => {
                       const v = Number(e.target.value);
-                      setTasks((prev) => prev.map((x) => (x.id === detalles.id ? { ...x, progreso: v } : x)));
-                      setDetalles({ ...detalles, progreso: v });
+                      // UI inmediata
+                      setTasks((prev) => prev.map((x) => (x.id === detalles.id ? { ...x, progreso: v, status: v >= 100 ? 'Completada' : 'Activa' } : x)));
+                      setDetalles({ ...detalles, progreso: v, status: v >= 100 ? 'Completada' : 'Activa' });
+                      // Debounce persistir al backend
+                      const id = detalles.id;
+                      const timers = progressTimers.current;
+                      if (timers[id]) window.clearTimeout(timers[id]);
+                      timers[id] = window.setTimeout(async () => {
+                        try {
+                          const api = await setTareaProgress(id, v);
+                          const ui = mapApiTareaToUI(api);
+                          setTasks((prev) => prev.map((x) => (x.id === ui.id ? { ...x, progreso: ui.progreso, status: ui.status } : x)));
+                          if (detalles && detalles.id === ui.id) setDetalles({ ...detalles, progreso: ui.progreso, status: ui.status as any });
+                        } catch (er: any) {
+                          setError(er?.message || 'No se pudo guardar el progreso');
+                        }
+                      }, 400);
                     }}
                     className="w-full"
                   />
@@ -593,28 +821,71 @@ const Tarea: React.FC = () => {
                 <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
                   <p className="font-medium text-gray-900">Tiempo</p>
                   <p className="text-sm text-gray-500">Total: {totalHoras(detalles)} h</p>
+                  {/* Filtros de historial */}
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+                    <div className="rounded-lg border border-gray-200 overflow-hidden">
+                      <button
+                        type="button"
+                        className={`px-3 py-1 ${tiempoFiltro.modo === 'hoy' ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
+                        onClick={() => setTiempoFiltro({ modo: 'hoy' })}
+                      >
+                        Hoy
+                      </button>
+                      <button
+                        type="button"
+                        className={`px-3 py-1 ${tiempoFiltro.modo === 'todo' ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
+                        onClick={() => setTiempoFiltro({ modo: 'todo' })}
+                      >
+                        Todo
+                      </button>
+                      <button
+                        type="button"
+                        className={`px-3 py-1 ${tiempoFiltro.modo === 'rango' ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50'}`}
+                        onClick={() => setTiempoFiltro({ modo: 'rango', desde: tiempoFiltro.desde, hasta: tiempoFiltro.hasta })}
+                      >
+                        Rango
+                      </button>
+                    </div>
+                    {tiempoFiltro.modo === 'rango' && (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="date"
+                          value={tiempoFiltro.desde ?? ''}
+                          onChange={(e) => setTiempoFiltro((f) => ({ ...f, modo: 'rango', desde: e.target.value }))}
+                          className="rounded-lg border-gray-200"
+                        />
+                        <span>—</span>
+                        <input
+                          type="date"
+                          value={tiempoFiltro.hasta ?? ''}
+                          onChange={(e) => setTiempoFiltro((f) => ({ ...f, modo: 'rango', hasta: e.target.value }))}
+                          className="rounded-lg border-gray-200"
+                        />
+                      </div>
+                    )}
+                  </div>
                   <form
-                    className="mt-3 flex gap-2"
+                    className="mt-3 flex gap-2 flex-wrap md:flex-nowrap"
                     onSubmit={(e) => {
                       e.preventDefault();
                       const form = e.currentTarget as HTMLFormElement;
                       const horas = Number((form.elements.namedItem('horas') as HTMLInputElement).value);
                       const nota = (form.elements.namedItem('nota') as HTMLInputElement).value;
-                      addTime(detalles, horas, nota);
+                      addTimeLocalAndApi(detalles, horas, nota);
                       setDetalles({ ...detalles, tiempo: [...detalles.tiempo, { id: `log-${Date.now()}`, horas, nota, fecha: new Date().toISOString() }] });
                       form.reset();
                     }}
                   >
-                    <input name="horas" type="number" step="0.25" min="0" placeholder="Horas" className="flex-1 rounded-lg border-gray-200" />
-                    <input name="nota" type="text" placeholder="Nota" className="flex-[2] rounded-lg border-gray-200" />
-                    <button className="px-3 rounded-lg bg-blue-600 text-white">Agregar</button>
+                    <input ref={timeHorasRef} name="horas" type="number" step="0.25" min="0" placeholder="Horas" className="basis-28 md:flex-1 rounded-lg border-gray-200" />
+                    <input name="nota" type="text" placeholder="Nota" className="basis-full md:flex-[2] rounded-lg border-gray-200" />
+                    <button type="submit" className="basis-full md:basis-auto px-3 py-2 rounded-lg bg-blue-600 text-white">Agregar</button>
                   </form>
-                  <ul className="mt-3 space-y-2 text-sm">
-                    {detalles.tiempo.length === 0 && <li className="text-gray-500">Sin registros aún.</li>}
+                  <ul className="mt-3 space-y-2 text-sm max-h-60 overflow-y-auto pr-1">
+                    {detalles.tiempo.length === 0 && <li className="text-gray-500">Sin registros para el filtro.</li>}
                     {detalles.tiempo.map((l) => (
                       <li key={l.id} className="flex items-center justify-between">
                         <span className="text-gray-700">{new Date(l.fecha).toLocaleDateString()} · {l.horas} h</span>
-                        <span className="text-gray-500">{l.nota}</span>
+                        <span className="text-gray-500 truncate max-w-[50%] text-right">{l.nota}</span>
                       </li>
                     ))}
                   </ul>
@@ -649,9 +920,15 @@ const Tarea: React.FC = () => {
             <p className="mt-1 text-gray-600">¿Seguro que deseas eliminar “{confirmDel.titulo}”?</p>
             <div className="mt-6 flex items-center justify-end gap-2">
               <button onClick={() => setConfirmDel(null)} className="px-4 py-2 rounded-lg border border-gray-200">Cancelar</button>
-              <button onClick={() => deleteTask(confirmDel)} className="px-4 py-2 rounded-lg bg-rose-600 text-white hover:bg-rose-700">Eliminar</button>
+              <button onClick={() => deleteTaskUI(confirmDel)} className="px-4 py-2 rounded-lg bg-rose-600 text-white hover:bg-rose-700">Eliminar</button>
             </div>
           </div>
+        </div>
+      )}
+      {loading && <div className="fixed bottom-4 right-4 bg-white border border-gray-200 shadow rounded-lg px-3 py-2 text-sm text-gray-600">Cargando…</div>}
+      {error && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-rose-600 text-white shadow rounded-lg px-3 py-2 text-sm">
+          {error}
         </div>
       )}
     </div>

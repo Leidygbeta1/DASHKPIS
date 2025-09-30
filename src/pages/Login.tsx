@@ -1,9 +1,6 @@
 import React, { useRef, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-
-// Usuario de prueba
-const TEST_EMAIL = "admin@g.com";
-const TEST_PASSWORD = "admin";
+import { apiLogin } from "../services/auth";
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -18,6 +15,7 @@ const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [loading, setLoading] = useState(false);
 
   // Cargar correo recordado
   useEffect(() => {
@@ -28,19 +26,26 @@ const Login: React.FC = () => {
     }
   }, []);
 
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg("");
-
-    if (email === TEST_EMAIL && password === TEST_PASSWORD) {
+    setLoading(true);
+    try {
+      const { user } = await apiLogin({ email, password });
+      // Recordar correo si aplica
       if (rememberMe) {
         localStorage.setItem("rememberedEmail", email);
       } else {
         localStorage.removeItem("rememberedEmail");
       }
+      // Guardar sesión básica (sin JWT por ahora)
+      localStorage.setItem("currentUser", JSON.stringify(user));
       navigate("/dashboard");
-    } else {
-      setErrorMsg("Correo o contraseña incorrectos.");
+    } catch (err: any) {
+      const msg = (err?.message || "Error al iniciar sesión").trim();
+      setErrorMsg(msg);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -179,9 +184,14 @@ const Login: React.FC = () => {
             {/* Botón login */}
             <button
               type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg py-2.5 transition-colors"
+              disabled={loading}
+              className={`w-full text-white font-medium rounded-lg py-2.5 transition-colors ${
+                loading
+                  ? "bg-blue-400 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700"
+              }`}
             >
-              Iniciar sesión
+              {loading ? "Iniciando…" : "Iniciar sesión"}
             </button>
 
             {/* Links de navegación */}
@@ -202,10 +212,9 @@ const Login: React.FC = () => {
               ¿Olvidaste tu contraseña?
             </p>
 
-            {/* Usuario de prueba */}
+            {/* Nota: autenticación real contra backend */}
             <p className="text-xs text-gray-400 text-center mt-4">
-              Usuario de prueba: <br />
-              <strong>{TEST_EMAIL}</strong> / <strong>{TEST_PASSWORD}</strong>
+              La autenticación valida contra tu base de datos de Azure SQL.
             </p>
           </form>
         </div>
