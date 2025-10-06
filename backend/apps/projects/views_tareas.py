@@ -7,6 +7,7 @@ from .serializers_tareas import (
     TareaSerializer, TareaCreateSerializer, TareaAssignSerializer,
     TareaDueDateSerializer, TareaProgressSerializer, TiempoCreateSerializer
 )
+from apps.notifications.utils import create_notification_if_enabled
 
 # UC-10: Listar tareas por proyecto
 class TareaListView(generics.ListAPIView):
@@ -25,9 +26,9 @@ class TareaCreateView(APIView):
         with connection.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO dbo.tareas (id_proyecto, titulo, descripcion, fecha_vencimiento, id_usuario_asignado, prioridad)
+                INSERT INTO dbo.tareas (id_proyecto, titulo, descripcion, fecha_vencimiento, id_usuario_asignado, prioridad, progreso, estado)
                 OUTPUT INSERTED.id_tarea
-                VALUES (%s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 [
                     data['id_proyecto'],
@@ -36,10 +37,24 @@ class TareaCreateView(APIView):
                     data.get('fecha_vencimiento'),
                     data.get('id_usuario_asignado'),
                     data.get('prioridad') or 'Media',
+                    0,
+                    'Pendiente',
                 ]
             )
             new_id = cur.fetchone()[0]
         instance = Tarea.objects.get(id_tarea=new_id)
+        # Notificación al asignado (si viene en el payload)
+        try:
+            if data.get('id_usuario_asignado'):
+                create_notification_if_enabled(
+                    id_usuario=data['id_usuario_asignado'],
+                    tipo='tarea_asignada',
+                    titulo=f"Tarea asignada: {data['titulo']}",
+                    mensaje=(data.get('descripcion') or ''),
+                    link=f"/dashboard/tarea"
+                )
+        except Exception:
+            pass
         return Response(TareaSerializer(instance).data, status=status.HTTP_201_CREATED)
 
 # UC-12: Editar tarea (título, descripción, fecha)
@@ -70,6 +85,19 @@ class TareaUpdateView(APIView):
                 ]
             )
         inst = Tarea.objects.get(id_tarea=id_tarea)
+        # Notificación al nuevo asignado
+        try:
+            new_uid = d.get('id_usuario_asignado')
+            if new_uid:
+                create_notification_if_enabled(
+                    id_usuario=new_uid,
+                    tipo='tarea_asignada',
+                    titulo=f"Te asignaron una tarea: {inst.titulo}",
+                    mensaje=(inst.descripcion or ''),
+                    link=f"/dashboard/tarea"
+                )
+        except Exception:
+            pass
         return Response(TareaSerializer(inst).data)
 
 # UC-02: Asignar tarea a usuario
@@ -86,6 +114,18 @@ class TareaAssignView(APIView):
                 [uid, id_tarea]
             )
         inst = Tarea.objects.get(id_tarea=id_tarea)
+        # Notificar al nuevo asignado
+        try:
+            if uid:
+                create_notification_if_enabled(
+                    id_usuario=uid,
+                    tipo='tarea_asignada',
+                    titulo=f"Te asignaron una tarea: {inst.titulo}",
+                    mensaje=(inst.descripcion or ''),
+                    link=f"/dashboard/tarea"
+                )
+        except Exception:
+            pass
         return Response(TareaSerializer(inst).data)
 
 # UC-03: Cambiar fecha límite

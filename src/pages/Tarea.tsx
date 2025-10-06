@@ -114,14 +114,17 @@ const Tarea: React.FC = () => {
       const [us, pr] = await Promise.all([fetchUsuarios(), fetchProyectos()]);
       setUsers(us);
       setProjects(pr);
-      // If a project filter already selected, load tasks for it; else try first project
-      const pid = proyectoF === 'Todos' ? pr[0]?.id_proyecto : proyectoF;
-      if (pid) {
-        const arr = await fetchTareasByProyecto(pid as number);
-        setTasks(arr.map(mapApiTareaToUI));
-        setProyectoF(pid as number);
-      } else {
+      // Cargar tareas según filtro actual. Si es 'Todos', traer de todos los proyectos.
+      if (pr.length === 0) {
         setTasks([]);
+      } else if (proyectoF === 'Todos') {
+        const all = await Promise.all(pr.map(p => fetchTareasByProyecto(p.id_proyecto)));
+        const flat = all.flat();
+        setTasks(flat.map(mapApiTareaToUI));
+        setProyectoF('Todos');
+      } else {
+        const arr = await fetchTareasByProyecto(proyectoF as number);
+        setTasks(arr.map(mapApiTareaToUI));
       }
     } catch (e: any) {
       setError(e?.message || 'Error al cargar datos');
@@ -473,6 +476,18 @@ const Tarea: React.FC = () => {
                 } finally {
                   setLoading(false);
                 }
+              } else {
+                // Cargar tareas de todos los proyectos
+                try {
+                  setLoading(true);
+                  const all = await Promise.all(projects.map(p => fetchTareasByProyecto(p.id_proyecto)));
+                  const flat = all.flat();
+                  setTasks(flat.map(mapApiTareaToUI));
+                } catch (er: any) {
+                  setError(er?.message || 'No se pudieron cargar tareas');
+                } finally {
+                  setLoading(false);
+                }
               }
             }}
             className="rounded-lg border-gray-200"
@@ -501,6 +516,8 @@ const Tarea: React.FC = () => {
               setPrioridadF('Todas');
               setProyectoF('Todos');
               setAsignadoF('Todos');
+              // Recargar todas las tareas de todos los proyectos
+              reloadAll();
             }}
             className="rounded-lg border border-gray-200 hover:bg-gray-50"
           >

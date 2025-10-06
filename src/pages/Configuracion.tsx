@@ -1,9 +1,19 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { getCurrentUser } from "../services/session";
+import { getNotificationConfig, updateNotificationConfig, type NotificationConfig } from "../services/notifications";
 
 const Configuracion: React.FC = () => {
   const [foto, setFoto] = useState<string | null>(null);
   const [notificaciones, setNotificaciones] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [notifConfig, setNotifConfig] = useState<NotificationConfig[]>([]);
+  const [savingNotif, setSavingNotif] = useState(false);
+
+  useEffect(() => {
+    const user = getCurrentUser();
+    if (!user) return;
+    getNotificationConfig(user.id_usuario).then(setNotifConfig).catch(() => setNotifConfig([]));
+  }, []);
 
   // Subir foto
   const handleUploadClick = () => {
@@ -324,6 +334,47 @@ const Configuracion: React.FC = () => {
             ? "Las notificaciones están activadas."
             : "Las notificaciones están desactivadas."}
         </p>
+
+        {/* Preferencias por tipo */}
+        <div className="mt-6">
+          <p className="text-sm font-semibold text-gray-900 mb-2">Preferencias por tipo</p>
+          <div className="space-y-2">
+            {notifConfig.length === 0 && (
+              <div className="text-sm text-gray-500">No hay preferencias cargadas.</div>
+            )}
+            {notifConfig.map((c, idx) => (
+              <label key={`${c.tipo}-${idx}`} className="flex items-center justify-between bg-gray-50 rounded-lg p-3 border border-gray-200">
+                <span className="text-sm text-gray-800">{c.tipo}</span>
+                <input
+                  type="checkbox"
+                  checked={c.activo}
+                  onChange={(e) => setNotifConfig(prev => prev.map((x, i) => i === idx ? { ...x, activo: e.target.checked } : x))}
+                  className="w-4 h-4"
+                />
+              </label>
+            ))}
+          </div>
+          <div className="mt-3 flex items-center justify-end">
+            <button
+              disabled={savingNotif}
+              onClick={async () => {
+                const user = getCurrentUser();
+                if (!user) return;
+                try {
+                  setSavingNotif(true);
+                  const payload = notifConfig.map(n => ({ tipo: n.tipo, activo: n.activo }));
+                  const saved = await updateNotificationConfig(user.id_usuario, payload);
+                  setNotifConfig(saved);
+                } finally {
+                  setSavingNotif(false);
+                }
+              }}
+              className={`px-4 py-2 rounded-lg ${savingNotif ? 'bg-gray-300' : 'bg-blue-600 hover:bg-blue-700'} text-white`}
+            >
+              {savingNotif ? 'Guardando…' : 'Guardar preferencias'}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -1,13 +1,72 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { getCurrentUser } from "../../services/session";
+import { listNotifications, markNotificationRead, type NotificationItem } from "../../services/notifications";
 
 type Props = { onMenuClick?: () => void };
 
 const Header: React.FC<Props> = ({ onMenuClick }) => {
   const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [latestSeenId, setLatestSeenId] = useState<number | null>(null);
+  const [toast, setToast] = useState<{ title: string; message?: string } | null>(null);
+  useEffect(() => {
+    const user = getCurrentUser();
+    if (!user) return;
+    // Load a small batch for the bell dropdown
+    listNotifications(user.id_usuario, { limit: 10 })
+      .then((items) => {
+        setNotifications(items);
+        // Memorize the highest id to avoid toasting existing items
+        const maxId = items.reduce((m, n) => Math.max(m, n.id_notificacion || 0), 0);
+        setLatestSeenId(maxId || null);
+      })
+      .catch(() => setNotifications([]));
+  }, []);
+
+  const unreadCount = notifications.filter(n => !n.leida).length;
+
+  const onClickNotification = async (n: NotificationItem) => {
+    try {
+      if (!n.leida) {
+        const saved = await markNotificationRead(n.id_notificacion, true);
+        setNotifications(prev => prev.map(x => x.id_notificacion === saved.id_notificacion ? saved : x));
+      }
+      if (n.link) {
+        // Navigate within app if link matches our routes
+        if (n.link.startsWith('/')) navigate(n.link);
+        else window.open(n.link, '_blank');
+      }
+    } catch (e) {
+      // ignore for now
+    }
+  };
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+
+  // Poll de notificaciones: cada 20s
+  useEffect(() => {
+    const user = getCurrentUser();
+    if (!user) return;
+    const interval = setInterval(async () => {
+      try {
+        const items = await listNotifications(user.id_usuario, { limit: 10 });
+        // Detectar si hay nuevas (id mayor a latestSeenId)
+        const maxId = items.reduce((m, n) => Math.max(m, n.id_notificacion || 0), 0);
+        if (latestSeenId && maxId > latestSeenId) {
+          const newest = items.find(n => n.id_notificacion === maxId);
+          if (newest) setToast({ title: newest.titulo, message: newest.mensaje || undefined });
+        }
+        setNotifications(items);
+        if (!latestSeenId && maxId) setLatestSeenId(maxId);
+        if (maxId > (latestSeenId || 0)) setLatestSeenId(maxId);
+      } catch {
+        // silenciar errores del poll
+      }
+    }, 20000);
+    return () => clearInterval(interval);
+  }, [latestSeenId]);
 
   const toggleDarkMode = () => {
     setDarkMode(!darkMode);
@@ -71,7 +130,22 @@ const Header: React.FC<Props> = ({ onMenuClick }) => {
           <div className="relative">
             <button
               className="relative p-2 rounded-lg hover:bg-gray-100 text-gray-600"
-              onClick={() => setShowNotifications(!showNotifications)}
+              onClick={async () => {
+                const next = !showNotifications;
+                setShowNotifications(next);
+                // refrescar al abrir
+                if (next) {
+                  const user = getCurrentUser();
+                  if (user) {
+                    try {
+                      const items = await listNotifications(user.id_usuario, { limit: 10 });
+                      setNotifications(items);
+                    } catch {
+                      // ignore
+                    }
+                  }
+                }
+              }}
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
                 <path
@@ -81,17 +155,36 @@ const Header: React.FC<Props> = ({ onMenuClick }) => {
                   strokeLinecap="round"
                 />
               </svg>
-              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-rose-500 text-white text-[10px] leading-4 rounded-full text-center">
-                3
-              </span>
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 bg-rose-500 text-white text-[10px] leading-4 rounded-full text-center">
+                  {unreadCount}
+                </span>
+              )}
             </button>
             {showNotifications && (
-              <div className="absolute right-0 mt-2 w-64 bg-white shadow-lg rounded-lg p-3">
-                <p className="text-sm font-semibold">Notificaciones</p>
-                <ul className="mt-2 text-sm text-gray-700">
-                  <li>🔔 Nueva actualización disponible</li>
-                  <li>📊 Reporte mensual listo</li>
-                  <li>✅ Configuración guardada</li>
+              <div className="absolute right-0 mt-2 w-80 bg-white shadow-lg rounded-lg p-3 border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold">Notificaciones</p>
+                  <button className="text-xs text-blue-600 hover:underline" onClick={() => navigate('/dashboard/reportes')}>Ver todo</button>
+                </div>
+                <ul className="mt-2 text-sm text-gray-700 max-h-80 overflow-auto">
+                  {notifications.length === 0 && (
+                    <li className="text-gray-500 py-6 text-center">No tienes notificaciones</li>
+                  )}
+                  {notifications.map(n => (
+                    <li key={n.id_notificacion} className={`p-2 rounded-lg cursor-pointer ${n.leida ? 'hover:bg-gray-50' : 'bg-blue-50 hover:bg-blue-100'}`} onClick={() => onClickNotification(n)}>
+                      <div className="flex items-start gap-2">
+                        <span className="mt-0.5">{n.leida ? '🔔' : '🟦'}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-medium text-gray-900 truncate">{n.titulo}</p>
+                            <span className="text-[10px] text-gray-500 whitespace-nowrap">{new Date(n.fecha).toLocaleString()}</span>
+                          </div>
+                          {n.mensaje && <p className="text-gray-600 truncate">{n.mensaje}</p>}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
                 </ul>
               </div>
             )}
@@ -157,6 +250,30 @@ const Header: React.FC<Props> = ({ onMenuClick }) => {
               </div>
             )}
           </div>
+          {/* Toast de notificación nueva */}
+          {toast && (
+            <div className="fixed top-16 right-4 z-30 max-w-xs bg-white border border-gray-200 shadow-lg rounded-lg p-3 animate-[fadeIn_200ms_ease-in]">
+              <div className="flex items-start gap-2">
+                <span>🔔</span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm text-gray-900 truncate">{toast.title}</p>
+                  {toast.message && <p className="text-xs text-gray-600 truncate">{toast.message}</p>}
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      className="text-xs text-blue-600 hover:underline"
+                      onClick={() => {
+                        setShowNotifications(true);
+                        setToast(null);
+                      }}
+                    >
+                      Ver
+                    </button>
+                    <button className="text-xs text-gray-500 hover:underline" onClick={() => setToast(null)}>Ocultar</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </header>
