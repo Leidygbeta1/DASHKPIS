@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'corsheaders',
     # Local apps
     'apps.kpis',
+    'apps.notifications',
     'apps.accounts',
     'apps.projects',
 ]

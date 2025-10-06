@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -16,48 +16,29 @@ import {
   LabelList,
 } from "recharts";
 
-// ---------------- Mock Data ----------------
-type KPIType = "Financiero" | "Operacional" | "Cliente" | "Marketing";
+// ---------------- Real data services ----------------
+import { listKPIs, type KPI as ApiKPI, type KPIType } from "../services/kpis";
+import { fetchProyectos, type Proyecto as ApiProyecto } from "../services/projects";
+import { fetchUsuarios, type UsuarioLite } from "../services/projects";
+import { fetchTareasByProyecto, type Tarea as ApiTarea } from "../services/tasks";
 
-type Project = { id: string; nombre: string; color: string };
+type Project = { id: number; nombre: string; color: string };
+type KPI = { id: number; nombre: string; objetivo: number; valorActual: number; tipo: KPIType; proyectoId?: number };
+type User = { id: number; nombre: string; avatar: string };
 
-type KPI = {
-  id: string;
-  nombre: string;
-  objetivo: number;
-  valorActual: number;
-  tipo: KPIType;
-  proyectoId?: string;
-};
-
-type User = { id: string; nombre: string; avatar: string };
-
-const users: User[] = [
-  { id: "u1", nombre: "Leidy", avatar: "https://i.pravatar.cc/40?img=5" },
-  { id: "u2", nombre: "Nicolás", avatar: "https://i.pravatar.cc/40?img=1" },
-  { id: "u3", nombre: "Carolina", avatar: "https://i.pravatar.cc/40?img=12" },
-];
-
-const projects: Project[] = [
-  { id: "p1", nombre: "Proyecto A", color: "bg-blue-100 text-blue-700" },
-  { id: "p2", nombre: "Proyecto B", color: "bg-emerald-100 text-emerald-700" },
-  { id: "p3", nombre: "Proyecto C", color: "bg-amber-100 text-amber-700" },
-];
-
-const initialKPIs: KPI[] = [
-  { id: "k1", nombre: "Conversión", objetivo: 5, valorActual: 3.5, tipo: "Marketing", proyectoId: "p1" },
-  { id: "k2", nombre: "CAC", objetivo: 50, valorActual: 62.1, tipo: "Financiero", proyectoId: "p2" },
-  { id: "k3", nombre: "NPS", objetivo: 75, valorActual: 81, tipo: "Cliente", proyectoId: "p1" },
-  { id: "k4", nombre: "Tiempo Respuesta", objetivo: 24, valorActual: 18, tipo: "Operacional", proyectoId: "p3" },
-];
-
-const tareas = [
-  { name: "Completadas", value: 42 },
-  { name: "En progreso", value: 18 },
-  { name: "Pendientes", value: 10 },
-];
+// Estado de tareas para el gráfico de pie
+type TaskSlice = { name: string; value: number };
 
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444"];
+
+// Paleta simple para proyectos
+const PROJECT_BADGES = [
+  "bg-blue-100 text-blue-700",
+  "bg-emerald-100 text-emerald-700",
+  "bg-amber-100 text-amber-700",
+  "bg-violet-100 text-violet-700",
+  "bg-rose-100 text-rose-700",
+];
 
 // ---------------- Mini Components ----------------
 const MiniTrend = ({ data }: { data: number[] }) => (
@@ -107,47 +88,144 @@ const StatCard = ({
 
 // ---------------- Dashboard ----------------
 const DashboardHome: React.FC = () => {
-  // 📊 Estadísticas calculadas
-  const totalKPIs = initialKPIs.length;
-  const avgProgress = useMemo(() => {
-    const sum = initialKPIs.reduce(
-      (acc, k) => acc + (k.valorActual / k.objetivo) * 100,
-      0
-    );
-    return sum / initialKPIs.length;
+  // Datos desde API
+  const [users, setUsers] = useState<User[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [kpis, setKpis] = useState<KPI[]>([]);
+  const [tareasPie, setTareasPie] = useState<TaskSlice[]>([
+    { name: "Completadas", value: 0 },
+    { name: "En progreso", value: 0 },
+    { name: "Pendientes", value: 0 },
+  ]);
+
+  // Carga inicial
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const [pr, us, ks] = await Promise.all([
+          fetchProyectos(),
+          fetchUsuarios(),
+          listKPIs(),
+        ]);
+        if (!alive) return;
+        // Proyectos mapeados
+        const mappedProjects: Project[] = pr.map((p: ApiProyecto, i: number) => ({
+          id: p.id_proyecto,
+          nombre: p.nombre,
+          color: PROJECT_BADGES[i % PROJECT_BADGES.length],
+        }));
+        setProjects(mappedProjects);
+        // Usuarios
+        setUsers(
+          us.map((u: UsuarioLite) => ({
+            id: u.id_usuario,
+            nombre: u.nombre || u.email,
+            avatar: `https://i.pravatar.cc/40?u=${u.email || u.id_usuario}`,
+          }))
+        );
+        // KPIs
+        setKpis(
+          ks.map((k: ApiKPI) => ({
+            id: k.id_kpi,
+            nombre: k.nombre,
+            objetivo: Number(k.valor_objetivo ?? 0) || 0,
+            valorActual: Number(k.valor_actual ?? 0) || 0,
+            tipo: k.tipo,
+            proyectoId: k.id_proyecto ?? undefined,
+          }))
+        );
+        // Tareas por estado (agrega todas las de todos los proyectos)
+        const tareasByProj = await Promise.all(
+          pr.map((p) => fetchTareasByProyecto(p.id_proyecto))
+        );
+        const allTasks: ApiTarea[] = tareasByProj.flat();
+        const completed = allTasks.filter((t) => t.estado === "Completada").length;
+        const inProgress = allTasks.filter((t) => t.estado === "En progreso").length;
+        const pending = allTasks.filter((t) => t.estado === "Pendiente").length;
+        setTareasPie([
+          { name: "Completadas", value: completed },
+          { name: "En progreso", value: inProgress },
+          { name: "Pendientes", value: pending },
+        ]);
+      } catch (e) {
+        // Silenciar pequeños errores; podríamos poner un banner si quieres
+      }
+    })();
+    return () => {
+      alive = false;
+    };
   }, []);
+
+  // 📊 Estadísticas calculadas
+  const totalKPIs = kpis.length;
+  const avgProgress = useMemo(() => {
+    const valid = kpis.filter((k) => k.objetivo > 0);
+    const sum = valid.reduce((acc, k) => acc + (k.valorActual / k.objetivo) * 100, 0);
+    return valid.length ? sum / valid.length : 0;
+  }, [kpis]);
 
   const kpiByType = useMemo(() => {
     const types: KPIType[] = ["Financiero", "Operacional", "Cliente", "Marketing"];
-    return types.map((t) => ({
-      name: t,
-      value: initialKPIs.filter((k) => k.tipo === t).length,
-    }));
-  }, []);
+    return types.map((t) => ({ name: t, value: kpis.filter((k) => k.tipo === t).length }));
+  }, [kpis]);
 
   const progressByProject = useMemo(() => {
-    return projects.map((p) => {
-      const projKpis = initialKPIs.filter((k) => k.proyectoId === p.id);
-      const avg =
-        projKpis.length > 0
-          ? projKpis.reduce((acc, k) => acc + (k.valorActual / k.objetivo) * 100, 0) /
-            projKpis.length
-          : 0;
+    const arr = projects.map((p) => {
+      const projKpis = kpis.filter((k) => k.proyectoId === p.id && k.objetivo > 0);
+      const avg = projKpis.length
+        ? projKpis.reduce((acc, k) => acc + (k.valorActual / k.objetivo) * 100, 0) / projKpis.length
+        : 0;
       return { name: p.nombre, progreso: +avg.toFixed(1) };
     });
-  }, []);
+    // Orden descendente por progreso
+    return arr.sort((a, b) => b.progreso - a.progreso);
+  }, [projects, kpis]);
 
-  const kpiTrend = [
-    { mes: "Mayo", progreso: 45, objetivos: 60 },
-    { mes: "Junio", progreso: 52, objetivos: 65 },
-    { mes: "Julio", progreso: 61, objetivos: 70 },
-    { mes: "Agosto", progreso: 68, objetivos: 72 },
-    { mes: "Septiembre", progreso: 74, objetivos: 78 },
-  ];
+  // Altura dinámica para que no se vea "apeñuscado"
+  const progressChartHeight = useMemo(() => {
+    const rows = Math.max(progressByProject.length, 1);
+    return Math.max(240, rows * 38 + 60); // ~38px por fila + margenes
+  }, [progressByProject.length]);
+
+  // Tendencia mensual simple basada en fecha_creacion de KPIs (últimos 5 meses)
+  const kpiTrend = useMemo(() => {
+    const months = [
+      "Enero",
+      "Febrero",
+      "Marzo",
+      "Abril",
+      "Mayo",
+      "Junio",
+      "Julio",
+      "Agosto",
+      "Septiembre",
+      "Octubre",
+      "Noviembre",
+      "Diciembre",
+    ];
+    const now = new Date();
+    const last5 = Array.from({ length: 5 }).map((_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (4 - i), 1);
+      return { y: d.getFullYear(), m: d.getMonth() };
+    });
+    return last5.map(({ y, m }) => {
+      const group = kpis.filter((k) => {
+        const d = k as any; // fecha_creacion está en servicios
+        const dt = new Date((d.fecha_creacion as string) || new Date());
+        return dt.getFullYear() === y && dt.getMonth() === m;
+      });
+      const valid = group.filter((k) => k.objetivo > 0);
+      const avg = valid.length
+        ? valid.reduce((acc, k) => acc + (k.valorActual / k.objetivo) * 100, 0) / valid.length
+        : 0;
+      return { mes: months[m], progreso: +avg.toFixed(0), objetivos: 80 };
+    });
+  }, [kpis]);
 
   // ---------------- Filtros ----------------
   const [kpiF, setKpiF] = useState<"Todos" | KPIType>("Todos");
-  const [userF, setUserF] = useState<"Todos" | string>("Todos");
+  const [userF, setUserF] = useState<"Todos" | number | string>("Todos");
   const [dateF, setDateF] = useState("");
 
   return (
@@ -216,10 +294,10 @@ const DashboardHome: React.FC = () => {
 
       {/* Cards superiores */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
-        <StatCard title="KPIs Totales" value={totalKPIs} delta={12.4} trendColor="green" />
-        <StatCard title="Cumplimiento Promedio" value={`${avgProgress.toFixed(1)}%`} delta={3.2} trendColor="amber" />
-        <StatCard title="Proyectos Activos" value={projects.length} delta={1.5} trendColor="green" />
-        <StatCard title="KPIs Financieros" value={initialKPIs.filter((k) => k.tipo === "Financiero").length} delta={-2.1} trendColor="rose" />
+  <StatCard title="KPIs Totales" value={totalKPIs} delta={12.4} trendColor="green" />
+  <StatCard title="Cumplimiento Promedio" value={`${avgProgress.toFixed(1)}%`} delta={3.2} trendColor="amber" />
+  <StatCard title="Proyectos Activos" value={projects.length} delta={1.5} trendColor="green" />
+  <StatCard title="KPIs Financieros" value={kpis.filter((k) => k.tipo === "Financiero").length} delta={-2.1} trendColor="rose" />
       </div>
 
       {/* Gráficas */}
@@ -228,7 +306,7 @@ const DashboardHome: React.FC = () => {
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">KPIs por Tipo</h3>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={kpiByType}>
+              <BarChart data={kpiByType}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" />
               <YAxis allowDecimals={false} />
@@ -246,7 +324,7 @@ const DashboardHome: React.FC = () => {
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
               <Pie
-                data={tareas}
+                data={tareasPie}
                 cx="50%"
                 cy="50%"
                 innerRadius={60}
@@ -258,7 +336,7 @@ const DashboardHome: React.FC = () => {
                 }
                 isAnimationActive
               >
-                {tareas.map((_, i) => (
+                {tareasPie.map((_, i) => (
                   <Cell key={i} fill={COLORS[i % COLORS.length]} />
                 ))}
               </Pie>
@@ -271,13 +349,18 @@ const DashboardHome: React.FC = () => {
         {/* Progreso por proyecto */}
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 lg:col-span-2">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">Progreso por Proyecto</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart layout="vertical" data={progressByProject}>
+          <ResponsiveContainer width="100%" height={progressChartHeight}>
+            <BarChart
+              layout="vertical"
+              data={progressByProject}
+              barCategoryGap="30%"
+              margin={{ top: 8, right: 24, bottom: 8, left: 8 }}
+            >
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis type="number" domain={[0, 100]} />
-              <YAxis dataKey="name" type="category" />
+              <YAxis dataKey="name" type="category" width={160} interval={0} />
               <Tooltip formatter={(v: number) => `${v}%`} />
-              <Bar dataKey="progreso" fill="#10b981" barSize={30} radius={[0, 10, 10, 0]}>
+              <Bar dataKey="progreso" fill="#10b981" barSize={24} radius={[0, 10, 10, 0]}>
                 <LabelList
                   dataKey="progreso"
                   position="right"
@@ -285,7 +368,7 @@ const DashboardHome: React.FC = () => {
                     const { x, y, value } = props;
                     if (x == null || y == null || value == null) return null;
                     return (
-                      <text x={x + 5} y={y + 5} fill="#374151" fontSize={12}>
+                      <text x={x + 6} y={y + 5} fill="#374151" fontSize={12}>
                         {value}%
                       </text>
                     );

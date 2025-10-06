@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from django.db import connection
 from .models import Proyecto
 from .serializers import ProyectoSerializer
+from apps.notifications.utils import create_notification_if_enabled
 
 
 class ProyectoListCreateView(generics.ListCreateAPIView):
@@ -31,6 +32,18 @@ class ProyectoListCreateView(generics.ListCreateAPIView):
             new_id = cursor.fetchone()[0]
         instance = Proyecto.objects.get(id_proyecto=new_id)
         output = self.get_serializer(instance).data
+        # Notificación: proyecto creado (si hay PM asignado)
+        try:
+            if output.get('id_pm'):
+                create_notification_if_enabled(
+                    id_usuario=output['id_pm'],
+                    tipo='proyecto_creado',
+                    titulo=f"Proyecto creado: {output.get('nombre')}",
+                    mensaje=output.get('descripcion'),
+                    link=f"/dashboard/proyectos"
+                )
+        except Exception:
+            pass
         headers = self.get_success_headers(output)
         return Response(output, status=status.HTTP_201_CREATED, headers=headers)
 

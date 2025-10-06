@@ -29,19 +29,44 @@ function pmName(usuarios: UsuarioLite[], id_pm?: number) {
   return u.nombre || u.email;
 }
 
+function parseYMDLocal(ymd: string): Date {
+  // Evita el parseo UTC de Date("YYYY-MM-DD") que genera desfases por zona horaria
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+}
+
 function daysBetween(a?: string, b?: string) {
   if (!a || !b) return "—";
-  const d1 = new Date(a).getTime();
-  const d2 = new Date(b).getTime();
+  const d1 = parseYMDLocal(a).getTime();
+  const d2 = parseYMDLocal(b).getTime();
   const days = Math.max(0, Math.round((d2 - d1) / 86400000));
   return `${days} d`;
 }
 
-function isActive(p: ProyectoUI) {
-  const today = new Date().toISOString().slice(0, 10);
-  if (p.fecha_inicio && !p.fecha_fin) return true;
-  if (p.fecha_inicio && p.fecha_fin) return p.fecha_inicio <= today && today <= p.fecha_fin;
-  return false;
+function projectStatus(p: ProyectoUI): "Activo" | "Finalizado" | "Sin fecha" {
+  // Toma la fecha local del equipo (a medianoche) para evitar desfases
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  const hasStart = !!p.fecha_inicio;
+  const hasEnd = !!p.fecha_fin;
+  if (!hasStart && !hasEnd) return "Sin fecha";
+
+  const start = hasStart ? parseYMDLocal(p.fecha_inicio!) : undefined;
+  const end = hasEnd ? parseYMDLocal(p.fecha_fin!) : undefined;
+
+  if (start && !end) {
+    // Activo si ya empezó
+    return start.getTime() <= today.getTime() ? "Activo" : "Sin fecha";
+  }
+  if (start && end) {
+    if (today.getTime() > end.getTime()) return "Finalizado";
+    if (today.getTime() >= start.getTime() && today.getTime() <= end.getTime()) return "Activo";
+    // Antes de iniciar
+    return "Sin fecha";
+  }
+  // Solo fecha fin sin inicio definido: tratar como "Sin fecha"
+  return "Sin fecha";
 }
 
 const Proyectos: React.FC = () => {
@@ -90,10 +115,10 @@ const Proyectos: React.FC = () => {
       .filter((p) => (pmF === "Todos" ? true : p.id_pm === pmF))
       .filter((p) => {
         if (estadoF === "Todos") return true;
-        const active = isActive(p);
-        if (estadoF === "Activos") return active;
-        if (estadoF === "Finalizados") return !!p.fecha_fin && !active;
-        if (estadoF === "Sin fecha") return !p.fecha_inicio && !p.fecha_fin;
+        const st = projectStatus(p);
+        if (estadoF === "Activos") return st === "Activo";
+        if (estadoF === "Finalizados") return st === "Finalizado";
+        if (estadoF === "Sin fecha") return st === "Sin fecha";
         return true;
       })
       .filter(
@@ -317,8 +342,12 @@ const Proyectos: React.FC = () => {
                   </td>
                   <td className="px-4 py-3">{daysBetween(p.fecha_inicio, p.fecha_fin)}</td>
                   <td className="px-4 py-3">
-                    <span className={`text-xs px-2 py-1 rounded ${isActive(p) ? "bg-emerald-100 text-emerald-700" : p.fecha_fin ? "bg-gray-100 text-gray-600" : "bg-amber-100 text-amber-700"}`}>
-                      {isActive(p) ? "Activo" : p.fecha_fin ? "Finalizado" : "Sin fecha"}
+                    <span className={`text-xs px-2 py-1 rounded ${
+                      projectStatus(p) === "Activo" ? "bg-emerald-100 text-emerald-700" :
+                      projectStatus(p) === "Finalizado" ? "bg-gray-100 text-gray-600" :
+                      "bg-amber-100 text-amber-700"
+                    }`}>
+                      {projectStatus(p)}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
@@ -338,8 +367,12 @@ const Proyectos: React.FC = () => {
             <div key={p.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
               <div className="flex items-start justify-between">
                 <div className="font-semibold text-gray-900">{p.nombre}</div>
-                <span className={`text-xs px-2 py-1 rounded ${isActive(p) ? "bg-emerald-100 text-emerald-700" : p.fecha_fin ? "bg-gray-100 text-gray-600" : "bg-amber-100 text-amber-700"}`}>
-                  {isActive(p) ? "Activo" : p.fecha_fin ? "Finalizado" : "Sin fecha"}
+                <span className={`text-xs px-2 py-1 rounded ${
+                  projectStatus(p) === "Activo" ? "bg-emerald-100 text-emerald-700" :
+                  projectStatus(p) === "Finalizado" ? "bg-gray-100 text-gray-600" :
+                  "bg-amber-100 text-amber-700"
+                }`}>
+                  {projectStatus(p)}
                 </span>
               </div>
               {p.descripcion && <p className="mt-2 text-gray-600 text-sm">{p.descripcion}</p>}

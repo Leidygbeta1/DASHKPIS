@@ -110,7 +110,7 @@ const Login: React.FC = () => {
           {/* Header centrado */}
           <div className="flex flex-col items-center text-center mb-6">
             <h1 className="text-2xl font-bold text-gray-900">
-              ¡Bienvenido a <span className="text-blue-600">DashKPIs</span>! 👋
+              ¡Bienvenido a <span className="text-blue-600">DashKPIs</span>! 
             </h1>
             <p className="text-gray-600 text-sm mt-2">
               Inicia sesión en tu cuenta y empieza la aventura

@@ -10,6 +10,7 @@ import Proyectos from "./pages/Proyectos";
 import Tarea from "./pages/Tarea";
 import Reportes from "./pages/Reportes";
 import Configuracion from "./pages/Configuracion";
+import Notificaciones from "./pages/Notificaciones";
 
 const App: React.FC = () => {
   return (
@@ -27,6 +28,7 @@ const App: React.FC = () => {
         <Route path="kpi" element={<Kpi />} />
         <Route path="tarea" element={<Tarea />} />
         <Route path="reportes" element={<Reportes />} />
+  <Route path="notificaciones" element={<Notificaciones />} />
         <Route path="configuracion" element={<Configuracion />} />
       </Route>
 
