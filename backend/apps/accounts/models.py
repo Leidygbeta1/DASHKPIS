@@ -13,3 +13,17 @@ class Usuario(models.Model):
         managed = False  # tabla ya existe en Azure SQL
         db_table = 'usuarios'
         app_label = 'accounts'
+
+
+class UserFormatPreference(models.Model):
+    id_usuario = models.IntegerField()
+    formato_fecha = models.CharField(max_length=20, default='DD/MM/YYYY')
+    codigo_moneda = models.CharField(max_length=10, default='COP')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'dashboard_user_format_prefs'
+        constraints = [
+            models.UniqueConstraint(fields=['id_usuario'], name='uniq_formato_usuario')
+        ]

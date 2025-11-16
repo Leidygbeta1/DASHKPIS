@@ -3,8 +3,16 @@ from django.contrib.auth.hashers import check_password, make_password
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .models import Usuario
-from .serializers import LoginSerializer, RegisterSerializer, UsuarioSerializer
+from .models import Usuario, UserFormatPreference
+from .serializers import (
+    LoginSerializer,
+    RegisterSerializer,
+    UsuarioSerializer,
+    UserFormatPreferenceSerializer,
+    UserFormatPreferenceInputSerializer,
+    DATE_FORMAT_CHOICES,
+    CURRENCY_CHOICES,
+)
 
 
 class LoginView(APIView):
@@ -71,3 +79,43 @@ class UsuariosListView(APIView):
                 'nombre': nombre,
             })
         return Response(listado)
+
+
+class UserFormatPreferenceView(APIView):
+    """
+    UC-05: Configurar formato de fechas y moneda.
+    """
+
+    DEFAULT_FORMAT = DATE_FORMAT_CHOICES[0]
+    DEFAULT_CURRENCY = CURRENCY_CHOICES[0]
+
+    def _build_default(self, user_id: int):
+        return {
+            'id_usuario': user_id,
+            'formato_fecha': self.DEFAULT_FORMAT,
+            'codigo_moneda': self.DEFAULT_CURRENCY,
+            'updated_at': None,
+        }
+
+    def get(self, request, id_usuario: int):
+        pref = UserFormatPreference.objects.filter(id_usuario=id_usuario).first()
+        if pref:
+            return Response(UserFormatPreferenceSerializer(pref).data)
+        return Response(self._build_default(id_usuario))
+
+    def put(self, request, id_usuario: int):
+        serializer = UserFormatPreferenceInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        pref, created = UserFormatPreference.objects.update_or_create(
+            id_usuario=id_usuario,
+            defaults={
+                'formato_fecha': serializer.validated_data['formato_fecha'],
+                'codigo_moneda': serializer.validated_data['codigo_moneda'],
+            }
+        )
+        status_code = status.HTTP_201_CREATED if created else status.HTTP_200_OK
+        return Response(UserFormatPreferenceSerializer(pref).data, status=status_code)
+
+    def delete(self, request, id_usuario: int):
+        UserFormatPreference.objects.filter(id_usuario=id_usuario).delete()
+        return Response(self._build_default(id_usuario))
