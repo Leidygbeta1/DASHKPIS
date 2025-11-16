@@ -5,7 +5,7 @@ from rest_framework.decorators import api_view
 from django.shortcuts import get_object_or_404
 
 from .models import Notificacion, ConfigNotificacion
-from .serializers import NotificacionSerializer, NotificacionMarkReadSerializer, ConfigNotificacionSerializer
+from .serializers import NotificacionSerializer, NotificacionMarkReadSerializer
 from django.db import connection
 
 
@@ -39,28 +39,112 @@ class NotificationMarkReadView(APIView):
 
 
 class NotificationConfigView(APIView):
+    CHANNEL_OPTIONS = [
+        {
+            'tipo': 'canal_inapp',
+            'nombre': 'Notificaciones en la app',
+            'descripcion': 'Alertas emergentes dentro del dashboard en tiempo real.',
+            'categoria': 'canal',
+            'default': True,
+        },
+        {
+            'tipo': 'canal_email',
+            'nombre': 'Correo electrónico',
+            'descripcion': 'Resumen detallado enviado a tu bandeja de entrada.',
+            'categoria': 'canal',
+            'default': True,
+        },
+        {
+            'tipo': 'canal_resumen',
+            'nombre': 'Resumen diario',
+            'descripcion': 'Un correo consolidado al final del día con los cambios más importantes.',
+            'categoria': 'canal',
+            'default': False,
+        },
+    ]
+
+    TYPE_OPTIONS = [
+        {
+            'tipo': 'tipo_tareas',
+            'nombre': 'Tareas asignadas y vencimientos',
+            'descripcion': 'Recibe avisos cuando te asignan una tarea o está por vencer.',
+            'categoria': 'tipo',
+            'default': True,
+        },
+        {
+            'tipo': 'tipo_kpis',
+            'nombre': 'Cambios en KPIs',
+            'descripcion': 'Alertas cuando un KPI cambia de estado o se aleja del objetivo.',
+            'categoria': 'tipo',
+            'default': True,
+        },
+        {
+            'tipo': 'tipo_reportes',
+            'nombre': 'Reportes generados',
+            'descripcion': 'Notificaciones cuando un reporte programado está listo.',
+            'categoria': 'tipo',
+            'default': False,
+        },
+    ]
+
+    OPTIONS = CHANNEL_OPTIONS + TYPE_OPTIONS
+    OPTIONS_MAP = {opt['tipo']: opt for opt in OPTIONS}
+
+    def _fetch_existing(self, id_usuario: int):
+        with connection.cursor() as cur:
+            cur.execute(
+                "SELECT tipo, activo FROM config_notificaciones WHERE id_usuario=%s",
+                [id_usuario]
+            )
+            rows = cur.fetchall()
+        return {tipo: bool(activo) for tipo, activo in rows}
+
+    def _build_response(self, id_usuario: int):
+        existing = self._fetch_existing(id_usuario)
+        data = []
+        for opt in self.OPTIONS:
+            data.append({
+                'id_usuario': id_usuario,
+                'tipo': opt['tipo'],
+                'nombre': opt['nombre'],
+                'descripcion': opt['descripcion'],
+                'categoria': opt['categoria'],
+                'activo': existing.get(opt['tipo'], opt['default']),
+            })
+        return data
+
     def get(self, request, id_usuario: int):
-        # Return all config rows for user
-        qs = ConfigNotificacion.objects.filter(id_usuario=id_usuario)
-        return Response(ConfigNotificacionSerializer(qs, many=True).data)
+        return Response(self._build_response(id_usuario))
 
     def put(self, request, id_usuario: int):
-        # Upsert (id_usuario, tipo) rows via raw SQL (unmanaged composite key)
-        # Payload: [{tipo, activo}]
         data = request.data
         if not isinstance(data, list):
             return Response({'detail': 'Se espera una lista'}, status=status.HTTP_400_BAD_REQUEST)
 
+        for item in data:
+            tipo = item.get('tipo')
+            if tipo not in self.OPTIONS_MAP:
+                return Response({'detail': f'El tipo {tipo} no es válido'}, status=status.HTTP_400_BAD_REQUEST)
+            if not isinstance(item.get('activo'), bool):
+                return Response({'detail': 'activo debe ser booleano'}, status=status.HTTP_400_BAD_REQUEST)
+
         with connection.cursor() as cur:
             for item in data:
-                tipo = item.get('tipo')
-                activo = item.get('activo')
-                if not isinstance(tipo, str) or not isinstance(activo, bool):
-                    return Response({'detail': 'Cada item debe tener tipo (str) y activo (bool)'}, status=status.HTTP_400_BAD_REQUEST)
-                # Try update; if 0 rows affected, insert
-                cur.execute("UPDATE config_notificaciones SET activo=%s WHERE id_usuario=%s AND tipo=%s", [1 if activo else 0, id_usuario, tipo])
+                tipo = item['tipo']
+                activo = 1 if item['activo'] else 0
+                cur.execute(
+                    "UPDATE config_notificaciones SET activo=%s WHERE id_usuario=%s AND tipo=%s",
+                    [activo, id_usuario, tipo]
+                )
                 if cur.rowcount == 0:
-                    cur.execute("INSERT INTO config_notificaciones (id_usuario, tipo, activo) VALUES (%s, %s, %s)", [id_usuario, tipo, 1 if activo else 0])
+                    cur.execute(
+                        "INSERT INTO config_notificaciones (id_usuario, tipo, activo) VALUES (%s, %s, %s)",
+                        [id_usuario, tipo, activo]
+                    )
 
-        qs = ConfigNotificacion.objects.filter(id_usuario=id_usuario)
-        return Response(ConfigNotificacionSerializer(qs, many=True).data)
+        return Response(self._build_response(id_usuario))
+
+    def delete(self, request, id_usuario: int):
+        with connection.cursor() as cur:
+            cur.execute("DELETE FROM config_notificaciones WHERE id_usuario=%s", [id_usuario])
+        return Response(self._build_response(id_usuario))
