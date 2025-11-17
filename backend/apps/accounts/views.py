@@ -94,6 +94,7 @@ class UserFormatPreferenceView(APIView):
             'id_usuario': user_id,
             'formato_fecha': self.DEFAULT_FORMAT,
             'codigo_moneda': self.DEFAULT_CURRENCY,
+            'fondo': None,
             'updated_at': None,
         }
 
@@ -106,12 +107,16 @@ class UserFormatPreferenceView(APIView):
     def put(self, request, id_usuario: int):
         serializer = UserFormatPreferenceInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        defaults = {
+            'formato_fecha': serializer.validated_data['formato_fecha'],
+            'codigo_moneda': serializer.validated_data['codigo_moneda'],
+        }
+        if 'fondo' in serializer.validated_data:
+            defaults['fondo'] = serializer.validated_data['fondo']
+
         pref, created = UserFormatPreference.objects.update_or_create(
             id_usuario=id_usuario,
-            defaults={
-                'formato_fecha': serializer.validated_data['formato_fecha'],
-                'codigo_moneda': serializer.validated_data['codigo_moneda'],
-            }
+            defaults=defaults,
         )
         status_code = status.HTTP_201_CREATED if created else status.HTTP_200_OK
         return Response(UserFormatPreferenceSerializer(pref).data, status=status_code)

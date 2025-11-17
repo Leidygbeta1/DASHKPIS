@@ -1,0 +1,12 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Migrar accounts: agregar campo fondo",
+			"type": "shell",
+			"command": "python ../manage.py migrate accounts",
+			"isBackground": false,
+			"problemMatcher": []
+		}
+	]
+}

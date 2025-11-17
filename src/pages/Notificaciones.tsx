@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { getCurrentUser } from "../services/session";
-import { listNotifications, markNotificationRead, type NotificationItem } from "../services/notifications";
+import { listNotifications, markNotificationRead, deleteNotification, type NotificationItem } from "../services/notifications";
 
 const relativeTime = (iso: string) => {
   const now = Date.now();
@@ -24,6 +24,9 @@ const Notificaciones: React.FC = () => {
   const [filterState, setFilterState] = useState<"Todas" | "No leídas" | "Leídas">("Todas");
   const [typeFilter, setTypeFilter] = useState<string>("Todos");
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const loadNotifications = async (background = false) => {
     if (!user) return;
@@ -31,7 +34,14 @@ const Notificaciones: React.FC = () => {
     else setLoading(true);
     try {
       setError(null);
-      const data = await listNotifications(user.id_usuario);
+      const params: any = {};
+      if (filterState === "Leídas") params.leida = true;
+      if (filterState === "No leídas") params.leida = false;
+      if (typeFilter !== "Todos") params.tipo = typeFilter;
+      if (search) params.q = search;
+      if (dateFrom) params.desde = dateFrom;
+      if (dateTo) params.hasta = dateTo;
+      const data = await listNotifications(user.id_usuario, params);
       setItems(data);
       if (data.length && !selectedId) {
         setSelectedId(data[0].id_notificacion);
@@ -131,12 +141,30 @@ const Notificaciones: React.FC = () => {
               </option>
             ))}
           </select>
+          <input
+            type="text"
+            placeholder="Buscar..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="rounded-lg border border-gray-200 text-sm px-2 py-1"
+            style={{ minWidth: 120 }}
+          />
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="rounded-lg border border-gray-200 text-sm px-2 py-1"
+          />
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="rounded-lg border border-gray-200 text-sm px-2 py-1"
+          />
           <button
             onClick={handleRefresh}
             disabled={refreshing || loading}
-            className={`px-3 py-2 rounded-lg border border-gray-200 text-sm ${
-              refreshing || loading ? "text-gray-400" : "hover:bg-gray-50"
-            }`}
+            className={`px-3 py-2 rounded-lg border border-gray-200 text-sm ${refreshing || loading ? "text-gray-400" : "hover:bg-gray-50"}`}
           >
             {refreshing ? "Actualizando…" : "Actualizar"}
           </button>
@@ -239,6 +267,22 @@ const Notificaciones: React.FC = () => {
                   className="px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
                 >
                   Actualizar lista
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!selected) return;
+                    try {
+                      await deleteNotification(selected.id_notificacion);
+                      setItems((prev) => prev.filter((n) => n.id_notificacion !== selected.id_notificacion));
+                      setSelectedId(null);
+                    } catch (err: any) {
+                      alert(err?.message || "No se pudo eliminar la notificación.");
+                    }
+                  }}
+                  className="px-4 py-2 rounded-lg border border-red-200 text-red-700 hover:bg-red-50"
+                >
+                  Eliminar notificación
                 </button>
               </div>
             </div>

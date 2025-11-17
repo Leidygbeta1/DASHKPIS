@@ -19,6 +19,7 @@ class UserFormatPreference(models.Model):
     id_usuario = models.IntegerField()
     formato_fecha = models.CharField(max_length=20, default='DD/MM/YYYY')
     codigo_moneda = models.CharField(max_length=10, default='COP')
+    fondo = models.CharField(max_length=255, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

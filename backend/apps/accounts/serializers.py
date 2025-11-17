@@ -27,9 +27,10 @@ CURRENCY_CHOICES = ('COP', 'USD', 'EUR')
 class UserFormatPreferenceInputSerializer(serializers.Serializer):
     formato_fecha = serializers.ChoiceField(choices=[(c, c) for c in DATE_FORMAT_CHOICES])
     codigo_moneda = serializers.ChoiceField(choices=[(c, c) for c in CURRENCY_CHOICES])
+    fondo = serializers.CharField(required=False, allow_blank=True, max_length=255)
 
 
 class UserFormatPreferenceSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserFormatPreference
-        fields = ['id_usuario', 'formato_fecha', 'codigo_moneda', 'updated_at']
+        fields = ['id_usuario', 'formato_fecha', 'codigo_moneda', 'fondo', 'updated_at']
