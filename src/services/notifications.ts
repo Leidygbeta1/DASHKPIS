@@ -1,3 +1,10 @@
+// Elimina una notificación por ID
+export async function deleteNotification(id_notificacion: number): Promise<void> {
+  const res = await fetch(`/api/notificaciones/${id_notificacion}/`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
 export type NotificationItem = {
   id_notificacion: number;
   id_usuario: number;
@@ -18,10 +25,24 @@ export type NotificationPreference = {
   activo: boolean;
 };
 
-export async function listNotifications(id_usuario: number, params?: { leida?: boolean; limit?: number }): Promise<NotificationItem[]> {
+export async function listNotifications(
+  id_usuario: number,
+  params?: {
+    leida?: boolean;
+    limit?: number;
+    tipo?: string;
+    q?: string;
+    desde?: string;
+    hasta?: string;
+  }
+): Promise<NotificationItem[]> {
   const qs = new URLSearchParams();
   if (params?.leida !== undefined) qs.set('leida', params.leida ? 'true' : 'false');
   if (params?.limit !== undefined) qs.set('limit', String(params.limit));
+  if (params?.tipo) qs.set('tipo', params.tipo);
+  if (params?.q) qs.set('q', params.q);
+  if (params?.desde) qs.set('desde', params.desde);
+  if (params?.hasta) qs.set('hasta', params.hasta);
   const res = await fetch(`/api/usuarios/${id_usuario}/notificaciones/${qs.toString() ? `?${qs.toString()}` : ''}`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();

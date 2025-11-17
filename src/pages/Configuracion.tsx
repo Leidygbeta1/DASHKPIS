@@ -56,6 +56,7 @@ const Configuracion: React.FC = () => {
   const [formatPref, setFormatPref] = useState<FormatPreference | null>(null);
   const [dateFormat, setDateFormat] = useState<FormatPreference["formato_fecha"]>("DD/MM/YYYY");
   const [currencyCode, setCurrencyCode] = useState<FormatPreference["codigo_moneda"]>("COP");
+  const [background, setBackground] = useState<string>("");
   const [formatLoading, setFormatLoading] = useState(false);
   const [formatSaving, setFormatSaving] = useState(false);
   const [formatAlert, setFormatAlert] = useState<{ tone: "success" | "error"; message: string } | null>(null);
@@ -97,16 +98,19 @@ const Configuracion: React.FC = () => {
         setFormatPref(pref);
         setDateFormat(pref.formato_fecha);
         setCurrencyCode(pref.codigo_moneda);
+        setBackground(pref.fondo || "");
       })
       .catch(() => {
         const fallback: FormatPreference = {
           id_usuario: currentUser.id_usuario,
           formato_fecha: "DD/MM/YYYY",
           codigo_moneda: "COP",
+          fondo: "",
         };
         setFormatPref(fallback);
         setDateFormat(fallback.formato_fecha);
         setCurrencyCode(fallback.codigo_moneda);
+        setBackground("");
       })
       .finally(() => setFormatLoading(false));
   }, [currentUser]);
@@ -489,6 +493,32 @@ const Configuracion: React.FC = () => {
               </div>
             </div>
           </div>
+          <div className="md:col-span-2">
+            <label className="block text-sm font-semibold text-gray-800 mb-1">Fondo de pantalla</label>
+            <select
+              disabled={formatLoading}
+              value={background}
+              onChange={(e) => {
+                setBackground(e.target.value);
+                setFormatAlert(null);
+              }}
+              className="w-full border rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">Predeterminado</option>
+              <option value="bg-gradient-to-br from-indigo-200 to-indigo-400">Azul degradado</option>
+              <option value="bg-gradient-to-br from-green-200 to-green-400">Verde degradado</option>
+              <option value="bg-gradient-to-br from-pink-200 to-pink-400">Rosa degradado</option>
+              <option value="bg-gradient-to-br from-yellow-100 to-yellow-300">Amarillo suave</option>
+              <option value="bg-white">Blanco</option>
+              <option value="bg-gray-100">Gris claro</option>
+            </select>
+            <div className="mt-3">
+              <p className="text-xs text-gray-500 mb-1">Vista previa</p>
+              <div className={`rounded-lg border border-dashed border-gray-300 px-3 py-6 text-center ${background || 'bg-white'}`}>
+                {background ? background.replace('bg-', '').replace(/-/g, ' ') : 'Predeterminado'}
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="mt-6 flex flex-wrap gap-3 justify-end">
@@ -499,6 +529,7 @@ const Configuracion: React.FC = () => {
               if (!formatPref) return;
               setDateFormat(formatPref.formato_fecha);
               setCurrencyCode(formatPref.codigo_moneda);
+              setBackground(formatPref.fondo || "");
               setFormatAlert(null);
             }}
             className="px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
@@ -516,6 +547,7 @@ const Configuracion: React.FC = () => {
                 setFormatPref(pref);
                 setDateFormat(pref.formato_fecha);
                 setCurrencyCode(pref.codigo_moneda);
+                setBackground(pref.fondo || "");
                 setFormatAlert({ tone: "success", message: "Se restableció el formato predeterminado." });
               } catch (err: any) {
                 const msg = err?.message || "No se pudo restablecer.";
@@ -538,6 +570,7 @@ const Configuracion: React.FC = () => {
                 const saved = await saveFormatPreference(currentUser.id_usuario, {
                   formato_fecha: dateFormat,
                   codigo_moneda: currencyCode,
+                  fondo: background,
                 });
                 setFormatPref(saved);
                 setFormatAlert({ tone: "success", message: "Preferencias guardadas correctamente." });

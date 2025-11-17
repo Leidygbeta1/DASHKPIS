@@ -3,6 +3,7 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.decorators import api_view
 from django.shortcuts import get_object_or_404
+from django.db.models import Q
 
 from .models import Notificacion, ConfigNotificacion
 from .serializers import NotificacionSerializer, NotificacionMarkReadSerializer
@@ -16,15 +17,48 @@ def health(request):
 
 class UserNotificationsView(APIView):
     def get(self, request, id_usuario: int):
-        # Optional filters: ?leida=true|false&limit=20
+        # Optional filters: ?leida=true|false&limit=20&tipo=...&q=search&desde=YYYY-MM-DD&hasta=YYYY-MM-DD
         qs = Notificacion.objects.filter(id_usuario=id_usuario).order_by('-fecha')
         leida = request.query_params.get('leida')
         if leida in ("true", "false"):
             qs = qs.filter(leida=(leida == 'true'))
+        tipo = request.query_params.get('tipo')
+        if tipo:
+            qs = qs.filter(tipo=tipo)
+        q = request.query_params.get('q')
+        if q:
+            qs = qs.filter(Q(titulo__icontains=q) | Q(mensaje__icontains=q))
+        desde = request.query_params.get('desde')
+        hasta = request.query_params.get('hasta')
+        if desde:
+            try:
+                from django.utils.dateparse import parse_date
+
+                d = parse_date(desde)
+                if d:
+                    qs = qs.filter(fecha__date__gte=d)
+            except Exception:
+                pass
+        if hasta:
+            try:
+                from django.utils.dateparse import parse_date
+
+                h = parse_date(hasta)
+                if h:
+                    qs = qs.filter(fecha__date__lte=h)
+            except Exception:
+                pass
         limit = request.query_params.get('limit')
         if limit and str(limit).isdigit():
             qs = qs[: int(limit)]
         return Response(NotificacionSerializer(qs, many=True).data)
+
+
+class NotificationDeleteView(APIView):
+    def delete(self, request, id_notificacion: int):
+        notif = get_object_or_404(Notificacion, pk=id_notificacion)
+        notif.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class NotificationMarkReadView(APIView):
