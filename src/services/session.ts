@@ -1,9 +1,12 @@
+
 export type CurrentUser = {
   id_usuario: number;
   email: string;
+  nombre: string;
   rol: string;
   fecha_registro: string;
   activo: boolean;
+  profile_image?: string; // Soporta imagen de perfil
 };
 
 export function getCurrentUser(): CurrentUser | null {
