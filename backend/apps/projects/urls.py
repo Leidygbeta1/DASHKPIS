@@ -3,6 +3,7 @@ from .views import (
     ProyectoListCreateView,
     ProyectoRetrieveUpdateDestroyView,
     PanelLayoutPreferenceView,
+    ReportExportPDFView,
 )
 from .views_tareas import (
     TareaListView, TareaCreateView, TareaUpdateView,
@@ -14,6 +15,7 @@ urlpatterns = [
     path('proyectos/', ProyectoListCreateView.as_view(), name='proyecto-list-create'),
     path('proyectos/<int:id_proyecto>/', ProyectoRetrieveUpdateDestroyView.as_view(), name='proyecto-rud'),
     path('dashboard/layout/', PanelLayoutPreferenceView.as_view(), name='dashboard-layout'),
+    path('reportes/export/pdf/', ReportExportPDFView.as_view(), name='report-export-pdf'),
     # Tareas
     path('proyectos/<int:id_proyecto>/tareas/', TareaListView.as_view(), name='tarea-list'),
     path('tareas/', TareaCreateView.as_view(), name='tarea-create'),

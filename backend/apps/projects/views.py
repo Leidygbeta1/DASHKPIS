@@ -1,9 +1,14 @@
+import io
+from datetime import datetime
+
 from rest_framework import generics, status, serializers
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.db import connection
+from django.http import HttpResponse
+from django.utils.text import slugify
 from .models import Proyecto, PanelLayoutPreference
-from .serializers import ProyectoSerializer, PanelLayoutPreferenceSerializer
+from .serializers import ProyectoSerializer, PanelLayoutPreferenceSerializer, ReportExportSerializer
 from apps.notifications.utils import create_notification_if_enabled
 from .layouts import DEFAULT_LAYOUT_CODE, safe_default_panel_state
 
@@ -161,3 +166,141 @@ class PanelLayoutPreferenceView(APIView):
         return Response(data, status=status.HTTP_200_OK)
 
 
+class ReportExportPDFView(APIView):
+    """
+    UC-12: Exportar reportes a PDF.
+    Genera un PDF sencillo con los datos suministrados por el frontend.
+    """
+
+    def post(self, request):
+        serializer = ReportExportSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        title = data['titulo']
+        generated_at = datetime.now().strftime('%Y-%m-%d %H:%M')
+        lines = [title, f'Generado: {generated_at}', '']
+
+        filtros = data.get('filtros') or {}
+        if filtros:
+            lines.append('Filtros aplicados:')
+            for key, value in filtros.items():
+                lines.append(f'  - {key}: {value}')
+            lines.append('')
+
+        resumen = data.get('resumen') or {}
+        if resumen:
+            lines.append('Resumen ejecutivo:')
+            for key, value in resumen.items():
+                lines.append(f'  - {key}: {value}')
+            lines.append('')
+
+        items = data.get('items') or []
+        if items:
+            lines.append('Principales iniciativas:')
+            for item in items[:5]:
+                name = item.get('initiative') or item.get('iniciativa') or 'Elemento'
+                status = item.get('status') or item.get('estado') or ''
+                progress = item.get('progress') or item.get('progreso') or ''
+                owner = item.get('owner') or item.get('responsable') or ''
+                lines.append(f'  • {name} ({status}) - {progress} {(" / " + owner) if owner else ""}'.rstrip())
+            lines.append('')
+
+        secciones = data.get('secciones') or []
+        if secciones:
+            lines.append('Secciones incluidas:')
+            for section in secciones:
+                nombre = section.get('label') or section.get('titulo') or section.get('key') or ''
+                descripcion = section.get('description') or section.get('descripcion') or ''
+                lines.append(f'  - {nombre}')
+                if descripcion:
+                    for wrapped in self._wrap_text(descripcion, width=90, indent='      '):
+                        lines.append(wrapped)
+            lines.append('')
+
+        nota = data.get('nota')
+        if nota:
+            lines.append('Notas:')
+            for wrapped in self._wrap_text(nota, width=95, indent='  '):
+                lines.append(wrapped)
+
+        pdf_bytes = self._build_simple_pdf(lines)
+        filename = data.get('nombre_archivo') or slugify(title) or 'reporte'
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename={filename}.pdf'
+        return response
+
+    def _wrap_text(self, text, width=80, indent=''):
+        words = text.split()
+        if not words:
+            return []
+        lines = []
+        current = []
+        current_len = 0
+        for word in words:
+            additional = len(word) + (1 if current else 0)
+            if current_len + additional > width:
+                lines.append(indent + ' '.join(current))
+                current = [word]
+                current_len = len(word)
+            else:
+                current.append(word)
+                current_len += additional
+        if current:
+            lines.append(indent + ' '.join(current))
+        return lines
+
+    def _escape_pdf_text(self, text):
+        return text.replace('\\', '\\\\').replace('(', '\\(').replace(')', '\\)')
+
+    def _build_simple_pdf(self, lines):
+        formatted = []
+        for line in lines:
+            if len(line) > 100:
+                formatted.extend(self._wrap_text(line))
+            else:
+                formatted.append(line)
+        if not formatted:
+            formatted = ['Reporte']
+
+        buffer = io.BytesIO()
+        buffer.write(b'%PDF-1.4\n')
+        offsets = [0] * 6
+
+        def write_obj(num, body_bytes):
+            offsets[num] = buffer.tell()
+            buffer.write(f'{num} 0 obj\n'.encode('ascii'))
+            buffer.write(body_bytes)
+            buffer.write(b'\nendobj\n')
+
+        write_obj(1, b'<< /Type /Catalog /Pages 2 0 R >>')
+        write_obj(2, b'<< /Type /Pages /Count 1 /Kids [3 0 R] >>')
+        write_obj(
+            3,
+            b'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R '
+            b'/Resources << /Font << /F1 5 0 R >> >> >>'
+        )
+
+        stream_lines = ['BT', '/F1 14 Tf', '64 740 Td']
+        for idx, line in enumerate(formatted):
+            escaped = self._escape_pdf_text(line)
+            if idx == 0:
+                stream_lines.append(f'({escaped}) Tj')
+            else:
+                stream_lines.append('0 -18 Td')
+                stream_lines.append(f'({escaped}) Tj')
+        stream_lines.append('ET')
+        stream = '\n'.join(stream_lines).encode('latin-1', 'ignore')
+        content = f'<< /Length {len(stream)} >>\nstream\n'.encode('ascii') + stream + b'\nendstream'
+        write_obj(4, content)
+        write_obj(5, b'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>')
+
+        xref_pos = buffer.tell()
+        buffer.write(b'xref\n0 6\n')
+        buffer.write(b'0000000000 65535 f \n')
+        for idx in range(1, 6):
+            buffer.write(f'{offsets[idx]:010d} 00000 n \n'.encode('ascii'))
+        buffer.write(b'trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n')
+        buffer.write(str(xref_pos).encode('ascii'))
+        buffer.write(b'\n%%EOF')
+        return buffer.getvalue()
