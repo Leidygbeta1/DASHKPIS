@@ -11,8 +11,8 @@ const Header: React.FC<Props> = ({ onMenuClick }) => {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [latestSeenId, setLatestSeenId] = useState<number | null>(null);
   const [toast, setToast] = useState<{ title: string; message?: string } | null>(null);
+  const user = getCurrentUser();
   useEffect(() => {
-    const user = getCurrentUser();
     if (!user) return;
     // Load a small batch for the bell dropdown
     listNotifications(user.id_usuario, { limit: 10 })
@@ -23,7 +23,7 @@ const Header: React.FC<Props> = ({ onMenuClick }) => {
         setLatestSeenId(maxId || null);
       })
       .catch(() => setNotifications([]));
-  }, []);
+  }, [user]);
 
   const unreadCount = notifications.filter(n => !n.leida).length;
 
@@ -47,7 +47,6 @@ const Header: React.FC<Props> = ({ onMenuClick }) => {
 
   // Poll de notificaciones: cada 20s
   useEffect(() => {
-    const user = getCurrentUser();
     if (!user) return;
     const interval = setInterval(async () => {
       try {
@@ -66,7 +65,7 @@ const Header: React.FC<Props> = ({ onMenuClick }) => {
       }
     }, 20000);
     return () => clearInterval(interval);
-  }, [latestSeenId]);
+  }, [user, latestSeenId]);
 
   const toggleDarkMode = () => {
     setDarkMode(!darkMode);
@@ -82,6 +81,13 @@ const Header: React.FC<Props> = ({ onMenuClick }) => {
     navigate("/dashboard/configuracion"); // asegúrate que exista esta ruta en App.tsx
   };
 
+  const userName = user?.nombre || user?.email || "Usuario";
+  let userImage = user?.profile_image;
+  // Si es base64, úsalo directamente
+  // Si no, muestra placeholder
+  if (!userImage || userImage === "" || userImage === null) {
+    userImage = "/assets/avatar-placeholder.png";
+  }
   return (
     <header className="sticky top-0 z-20 bg-white/80 backdrop-blur border-b border-gray-200">
       <div className="px-4 sm:px-6 py-3 flex items-center gap-3">
@@ -134,15 +140,12 @@ const Header: React.FC<Props> = ({ onMenuClick }) => {
                 const next = !showNotifications;
                 setShowNotifications(next);
                 // refrescar al abrir
-                if (next) {
-                  const user = getCurrentUser();
-                  if (user) {
-                    try {
-                      const items = await listNotifications(user.id_usuario, { limit: 10 });
-                      setNotifications(items);
-                    } catch {
-                      // ignore
-                    }
+                if (next && user) {
+                  try {
+                    const items = await listNotifications(user.id_usuario, { limit: 10 });
+                    setNotifications(items);
+                  } catch {
+                    // ignore
                   }
                 }
               }}
@@ -224,13 +227,13 @@ const Header: React.FC<Props> = ({ onMenuClick }) => {
               onClick={() => setShowUserMenu(!showUserMenu)}
             >
               <img
-                className="w-8 h-8 rounded-full"
-                src="https://i.pravatar.cc/40"
+                className="w-8 h-8 rounded-full object-cover border"
+                src={userImage || "/assets/avatar-placeholder.png"}
                 alt="Avatar"
               />
               <div className="hidden sm:block leading-4 text-left">
-                <p className="text-sm font-semibold text-gray-900">Usuario</p>
-                <p className="text-xs text-gray-500">Administrador</p>
+                <p className="text-sm font-semibold text-gray-900">{userName}</p>
+                <p className="text-xs text-gray-500">{user?.rol || "Usuario"}</p>
               </div>
             </button>
             {showUserMenu && (

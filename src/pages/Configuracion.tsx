@@ -12,6 +12,7 @@ import {
   resetFormatPreference,
   type FormatPreference,
 } from "../services/preferences";
+import { updateUserProfile } from "../services/api"; // Asegúrate de que esta función esté implementada
 
 type CurrencyOption = {
   code: FormatPreference["codigo_moneda"];
@@ -45,7 +46,14 @@ const formatCurrencyPreview = (code: FormatPreference["codigo_moneda"]) => {
 };
 
 const Configuracion: React.FC = () => {
-  const [foto, setFoto] = useState<string | null>(null);
+  // Inicializa 'foto' con la imagen actual del usuario si existe
+  const currentUser = useMemo(() => getCurrentUser(), []);
+  // Si el usuario tiene imagen base64, úsala; si no, null
+  const [foto, setFoto] = useState<string | null>(
+    currentUser && currentUser.profile_image ? currentUser.profile_image : null
+  );
+  const [nombre, setNombre] = useState("");
+  const [email, setEmail] = useState("");
   const [notificaciones, setNotificaciones] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [notifConfig, setNotifConfig] = useState<NotificationPreference[]>([]);
@@ -61,7 +69,7 @@ const Configuracion: React.FC = () => {
   const [formatSaving, setFormatSaving] = useState(false);
   const [formatAlert, setFormatAlert] = useState<{ tone: "success" | "error"; message: string } | null>(null);
 
-  const currentUser = useMemo(() => getCurrentUser(), []);
+  // ...existing code...
   const notifGroups = useMemo(
     () => ({
       canales: notifConfig.filter((item) => item.categoria === "canal"),
@@ -88,6 +96,9 @@ const Configuracion: React.FC = () => {
         setNotificaciones(false);
       })
       .finally(() => setNotifLoading(false));
+    // Cargar datos de usuario para el formulario de perfil
+    setNombre(currentUser.nombre || "");
+    setEmail(currentUser.email || "");
   }, [currentUser]);
 
   useEffect(() => {
@@ -116,6 +127,7 @@ const Configuracion: React.FC = () => {
   }, [currentUser]);
 
   // Subir foto
+  // Subir imagen y convertir a base64
   const handleUploadClick = () => {
     const fileInput = document.createElement("input");
     fileInput.type = "file";
@@ -125,7 +137,7 @@ const Configuracion: React.FC = () => {
       if (file) {
         const reader = new FileReader();
         reader.onload = (event) => {
-          setFoto(event.target?.result as string);
+          setFoto(event.target?.result as string); // base64
         };
         reader.readAsDataURL(file);
       }
@@ -197,6 +209,30 @@ const Configuracion: React.FC = () => {
     }
   };
 
+  const handleSaveProfile = async () => {
+    if (!currentUser) return;
+    const payload: any = {
+      id_usuario: currentUser.id_usuario,
+      nombre,
+      email,
+    };
+    if (foto) {
+      payload.profile_image = foto;
+    }
+    try {
+      const apiResponse = await updateUserProfile(payload);
+      let updatedUser = { ...currentUser, ...apiResponse };
+      if (!updatedUser.profile_image && currentUser.profile_image) {
+        updatedUser.profile_image = currentUser.profile_image;
+      }
+      localStorage.setItem("currentUser", JSON.stringify(updatedUser));
+      alert("Perfil actualizado correctamente");
+      window.location.reload();
+    } catch (error: any) {
+      alert(error.message || "Error al actualizar el perfil");
+    }
+  };
+
   return (
     <div className="p-6 space-y-10">
       {/* Título */}
@@ -218,6 +254,7 @@ const Configuracion: React.FC = () => {
               src={foto}
               alt="Perfil"
               className="w-20 h-20 rounded-full object-cover border shadow-md"
+              onError={e => { (e.target as HTMLImageElement).src = "https://via.placeholder.com/80"; }}
             />
           ) : (
             <img
@@ -248,161 +285,24 @@ const Configuracion: React.FC = () => {
         </div>
 
         {/* Formulario */}
-        <form className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <form className="grid grid-cols-1 md:grid-cols-2 gap-4" onSubmit={e => { e.preventDefault(); handleSaveProfile(); }}>
           <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Primer Nombre
-            </label>
+            <label className="block text-sm font-medium text-gray-700">Nombre</label>
             <input
               type="text"
-              defaultValue="John"
+              value={nombre}
+              onChange={e => setNombre(e.target.value)}
               className="mt-1 block w-full border rounded-md p-2 text-sm focus:ring-2 focus:ring-indigo-500"
             />
           </div>
-
           <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Apellido
-            </label>
-            <input
-              type="text"
-              defaultValue="Doe"
-              className="mt-1 block w-full border rounded-md p-2 text-sm focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Fecha de nacimiento
-            </label>
-            <input
-              type="date"
-              className="mt-1 block w-full border rounded-md p-2 text-sm focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Género
-            </label>
-            <select className="mt-1 block w-full border rounded-md p-2 text-sm focus:ring-2 focus:ring-indigo-500">
-              <option>Seleccionar</option>
-              <option>Masculino</option>
-              <option>Femenino</option>
-              <option>Otro</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Correo electrónico
-            </label>
+            <label className="block text-sm font-medium text-gray-700">Correo electrónico</label>
             <input
               type="email"
-              defaultValue="john.doe@example.com"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
               className="mt-1 block w-full border rounded-md p-2 text-sm focus:ring-2 focus:ring-indigo-500"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Organización
-            </label>
-            <input
-              type="text"
-              defaultValue="ThemeSelection"
-              className="mt-1 block w-full border rounded-md p-2 text-sm focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Teléfono
-            </label>
-            <input
-              type="tel"
-              placeholder="(+57) 300 123 4567"
-              className="mt-1 block w-full border rounded-md p-2 text-sm focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Dirección
-            </label>
-            <input
-              type="text"
-              placeholder="Dirección"
-              className="mt-1 block w-full border rounded-md p-2 text-sm focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Estado / Departamento
-            </label>
-            <input
-              type="text"
-              defaultValue="California"
-              className="mt-1 block w-full border rounded-md p-2 text-sm focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Código Postal
-            </label>
-            <input
-              type="text"
-              defaultValue="231465"
-              className="mt-1 block w-full border rounded-md p-2 text-sm focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              País
-            </label>
-            <select className="mt-1 block w-full border rounded-md p-2 text-sm focus:ring-2 focus:ring-indigo-500">
-              <option>Seleccionar</option>
-              <option>Colombia</option>
-              <option>México</option>
-              <option>Estados Unidos</option>
-              <option>España</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Idioma
-            </label>
-            <select className="mt-1 block w-full border rounded-md p-2 text-sm focus:ring-2 focus:ring-indigo-500">
-              <option>Seleccionar idioma</option>
-              <option>Español</option>
-              <option>Inglés</option>
-              <option>Francés</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Zona horaria
-            </label>
-            <select className="mt-1 block w-full border rounded-md p-2 text-sm focus:ring-2 focus:ring-indigo-500">
-              <option>Seleccionar zona horaria</option>
-              <option>GMT-5 (Bogotá, Lima)</option>
-              <option>GMT-6 (CDMX)</option>
-              <option>GMT+1 (Madrid)</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Moneda
-            </label>
-            <select className="mt-1 block w-full border rounded-md p-2 text-sm focus:ring-2 focus:ring-indigo-500">
-              <option>Seleccionar moneda</option>
-              <option>COP - Peso Colombiano</option>
-              <option>USD - Dólar</option>
-              <option>EUR - Euro</option>
-            </select>
           </div>
         </form>
 
@@ -410,6 +310,7 @@ const Configuracion: React.FC = () => {
         <div className="mt-6 flex gap-2">
           <button
             type="submit"
+            onClick={handleSaveProfile}
             className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
           >
             Guardar cambios

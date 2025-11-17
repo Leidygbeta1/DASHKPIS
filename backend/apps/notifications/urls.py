@@ -5,6 +5,7 @@ from .views import (
     NotificationMarkReadView,
     NotificationConfigView,
     NotificationDeleteView,
+    UserProfileUpdateView,
 )
 
 urlpatterns = [
@@ -13,4 +14,5 @@ urlpatterns = [
     path('notificaciones/<int:id_notificacion>/leida/', NotificationMarkReadView.as_view(), name='notification-mark-read'),
     path('notificaciones/<int:id_notificacion>/', NotificationDeleteView.as_view(), name='notification-delete'),
     path('usuarios/<int:id_usuario>/notificaciones/config/', NotificationConfigView.as_view(), name='notification-config'),
+    path('usuarios/perfil/', UserProfileUpdateView.as_view(), name='user-profile-update'),
 ]

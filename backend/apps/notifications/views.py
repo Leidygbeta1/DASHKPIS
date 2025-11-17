@@ -4,6 +4,10 @@ from rest_framework.views import APIView
 from rest_framework.decorators import api_view
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
+from apps.accounts.models import Usuario
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.serializers import ModelSerializer
 
 from .models import Notificacion, ConfigNotificacion
 from .serializers import NotificacionSerializer, NotificacionMarkReadSerializer
@@ -182,3 +186,34 @@ class NotificationConfigView(APIView):
         with connection.cursor() as cur:
             cur.execute("DELETE FROM config_notificaciones WHERE id_usuario=%s", [id_usuario])
         return Response(self._build_response(id_usuario))
+
+
+class UserProfileSerializer(ModelSerializer):
+    class Meta:
+        model = Usuario
+        fields = ['id_usuario', 'email', 'nombre', 'rol', 'profile_image']
+
+
+class UserProfileUpdateView(APIView):
+
+
+    def put(self, request):
+        id_usuario = request.data.get('id_usuario')
+        if not id_usuario:
+            return Response({'detail': 'id_usuario requerido'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            user = Usuario.objects.get(id_usuario=id_usuario)
+        except Usuario.DoesNotExist:
+            return Response({'detail': 'Usuario no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+        # Si profile_image viene en el request, debe ser base64
+        data = request.data.copy()
+        profile_image = data.get('profile_image')
+        if profile_image is not None:
+            user.profile_image = profile_image
+        if 'nombre' in data:
+            user.nombre = data['nombre']
+        if 'email' in data:
+            user.email = data['email']
+        user.save(update_fields=['profile_image', 'nombre', 'email'])
+        serializer = UserProfileSerializer(user)
+        return Response(serializer.data, status=status.HTTP_200_OK)

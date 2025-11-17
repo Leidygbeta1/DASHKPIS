@@ -8,6 +8,7 @@ class Usuario(models.Model):
     nombre = models.CharField(max_length=150, null=True)
     fecha_registro = models.DateTimeField()
     activo = models.BooleanField()
+    profile_image = models.TextField(null=True, blank=True)  # Ahora almacena base64
 
     class Meta:
         managed = False  # tabla ya existe en Azure SQL
