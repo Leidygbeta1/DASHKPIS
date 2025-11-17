@@ -94,3 +94,19 @@ class PanelLayoutPreferenceSerializer(serializers.ModelSerializer):
         if data.get('pinned_panels') is None:
             data['pinned_panels'] = []
         return data
+
+
+class ReportExportSerializer(serializers.Serializer):
+    titulo = serializers.CharField(max_length=200)
+    filtros = serializers.DictField(child=serializers.CharField(allow_blank=True), required=False)
+    resumen = serializers.DictField(child=serializers.CharField(allow_blank=True), required=False)
+    items = serializers.ListField(
+        child=serializers.DictField(child=serializers.CharField(allow_blank=True)),
+        required=False
+    )
+    secciones = serializers.ListField(
+        child=serializers.DictField(child=serializers.CharField(allow_blank=True)),
+        required=False
+    )
+    nota = serializers.CharField(required=False, allow_blank=True)
+    nombre_archivo = serializers.CharField(required=False, allow_blank=True, max_length=120)
