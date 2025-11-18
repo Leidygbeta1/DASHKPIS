@@ -22,10 +22,14 @@ export type TareaCreate = {
 
 export type TareaUpdate = TareaCreate;
 
+import { fetchJsonCached, invalidateCache } from './http';
+
 export async function fetchTareasByProyecto(id_proyecto: number): Promise<Tarea[]> {
-  const res = await fetch(`/api/proyectos/${id_proyecto}/tareas/`);
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  // Cache project task lists briefly to speed up navigation between views
+  return fetchJsonCached<Tarea[]>(`/api/proyectos/${id_proyecto}/tareas/`, {
+    ttlMs: 20000,
+    persist: true,
+  });
 }
 
 export async function createTarea(body: TareaCreate): Promise<Tarea> {
@@ -35,7 +39,10 @@ export async function createTarea(body: TareaCreate): Promise<Tarea> {
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  const data = await res.json();
+  // Invalidate cached lists for the affected project
+  if (body?.id_proyecto != null) invalidateCache(`/api/proyectos/${body.id_proyecto}/tareas/`);
+  return data;
 }
 
 export async function updateTarea(id_tarea: number, body: TareaUpdate): Promise<Tarea> {
@@ -45,7 +52,14 @@ export async function updateTarea(id_tarea: number, body: TareaUpdate): Promise<
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  const data = await res.json();
+  // Try to invalidate the specific project list if available, otherwise nuke broader caches
+  if (body?.id_proyecto != null) {
+    invalidateCache(`/api/proyectos/${body.id_proyecto}/tareas/`);
+  } else {
+    invalidateCache('/api/proyectos/');
+  }
+  return data;
 }
 
 export async function assignTarea(id_tarea: number, id_usuario_asignado: number | null): Promise<Tarea> {
@@ -55,7 +69,10 @@ export async function assignTarea(id_tarea: number, id_usuario_asignado: number 
     body: JSON.stringify({ id_usuario_asignado }),
   });
   if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  const data = await res.json();
+  // Assignment changes can affect list badges/filters; clear project task list caches broadly
+  invalidateCache('/api/proyectos/');
+  return data;
 }
 
 export async function changeDueDate(id_tarea: number, fecha_vencimiento: string | null): Promise<Tarea> {
@@ -65,7 +82,9 @@ export async function changeDueDate(id_tarea: number, fecha_vencimiento: string 
     body: JSON.stringify({ fecha_vencimiento }),
   });
   if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  const data = await res.json();
+  invalidateCache('/api/proyectos/');
+  return data;
 }
 
 export async function addTiempo(id_tarea: number, id_usuario: number, horas: number, nota?: string): Promise<{ ok: boolean; total_horas: number }> {
@@ -75,7 +94,10 @@ export async function addTiempo(id_tarea: number, id_usuario: number, horas: num
     body: JSON.stringify({ id_tarea, id_usuario, horas, nota }),
   });
   if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  const data = await res.json();
+  // Time entries affect the timeline list for that task
+  invalidateCache(`/api/tareas/${id_tarea}/tiempo/`);
+  return data;
 }
 
 export type TiempoLog = {
@@ -95,20 +117,26 @@ export async function listTiempo(
   if (opts?.desde) params.set('desde', opts.desde);
   if (opts?.hasta) params.set('hasta', opts.hasta);
   const qs = params.toString();
-  const res = await fetch(`/api/tareas/${id_tarea}/tiempo/${qs ? `?${qs}` : ''}`);
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  // Cache short-lived time logs; do not persist to localStorage to avoid confusion across sessions
+  return fetchJsonCached<TiempoLog[]>(`/api/tareas/${id_tarea}/tiempo/${qs ? `?${qs}` : ''}` , {
+    ttlMs: 10000,
+    persist: false,
+  });
 }
 
 export async function completeTarea(id_tarea: number): Promise<Tarea> {
   const res = await fetch(`/api/tareas/${id_tarea}/complete/`, { method: 'POST' });
   if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  const data = await res.json();
+  invalidateCache('/api/proyectos/');
+  return data;
 }
 
 export async function deleteTarea(id_tarea: number): Promise<void> {
   const res = await fetch(`/api/tareas/${id_tarea}/delete/`, { method: 'DELETE' });
   if (!res.ok) throw new Error(await res.text());
+  // We don't know the project id; invalidate broadly
+  invalidateCache('/api/proyectos/');
 }
 
 export async function setTareaProgress(id_tarea: number, progreso: number): Promise<Tarea> {
@@ -118,5 +146,7 @@ export async function setTareaProgress(id_tarea: number, progreso: number): Prom
     body: JSON.stringify({ progreso }),
   });
   if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  const data = await res.json();
+  invalidateCache('/api/proyectos/');
+  return data;
 }

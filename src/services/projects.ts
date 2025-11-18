@@ -9,10 +9,10 @@ export type Proyecto = {
 
 export type UsuarioLite = { id_usuario: number; email: string; rol: string; nombre?: string };
 
+import { fetchJsonCached } from './http';
+
 export async function fetchProyectos(): Promise<Proyecto[]> {
-  const res = await fetch('/api/proyectos/');
-  if (!res.ok) throw new Error('No se pudieron cargar los proyectos');
-  return res.json();
+  return fetchJsonCached<Proyecto[]>('/api/proyectos/', { ttlMs: 30000, persist: true });
 }
 
 export async function createProyecto(p: Omit<Proyecto, 'id_proyecto'>): Promise<Proyecto> {
@@ -41,7 +41,5 @@ export async function deleteProyecto(id: number): Promise<void> {
 }
 
 export async function fetchUsuarios(): Promise<UsuarioLite[]> {
-  const res = await fetch('/api/usuarios/');
-  if (!res.ok) throw new Error('No se pudieron cargar los usuarios');
-  return res.json();
+  return fetchJsonCached<UsuarioLite[]>('/api/usuarios/', { ttlMs: 60000, persist: true });
 }

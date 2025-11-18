@@ -252,7 +252,7 @@ const Proyectos: React.FC = () => {
               </button>
             </div>
 
-            <button onClick={openCreate} className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 shadow">
+            <button onClick={openCreate} className="px-4 py-2 rounded-lg btn-primary shadow">
               Nuevo proyecto
             </button>
           </div>
@@ -430,7 +430,7 @@ const Proyectos: React.FC = () => {
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-2">
               <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg border border-gray-200">Cancelar</button>
-              <button onClick={save} className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">Guardar</button>
+              <button onClick={save} className="px-4 py-2 rounded-lg btn-primary">Guardar</button>
             </div>
           </div>
         </div>

@@ -225,7 +225,7 @@ const StatCard = ({
     amber: "text-amber-600 bg-amber-50",
   } as const;
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+    <div className="surface-card rounded-xl border shadow-sm p-5">
       <p className="text-sm text-gray-500">{title}</p>
       <div className="mt-2 flex items-end justify-between">
         <span className="text-2xl font-bold text-gray-900">{value}</span>
@@ -538,7 +538,7 @@ const DashboardHome: React.FC = () => {
         );
       case "kpiByType":
         return (
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+          <div className="surface-card rounded-xl p-6 shadow-sm border">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">KPIs por Tipo</h3>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={kpiByType}>
@@ -555,7 +555,7 @@ const DashboardHome: React.FC = () => {
         );
       case "tasksStatus":
         return (
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+          <div className="surface-card rounded-xl p-6 shadow-sm border">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">Estado de Tareas</h3>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
@@ -582,7 +582,7 @@ const DashboardHome: React.FC = () => {
         );
       case "progressByProject":
         return (
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 h-full">
+          <div className="surface-card rounded-xl p-6 shadow-sm border h-full">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">Progreso por Proyecto</h3>
             <ResponsiveContainer width="100%" height={progressChartHeight}>
               <BarChart
@@ -603,7 +603,7 @@ const DashboardHome: React.FC = () => {
                       const { x, y, value } = props;
                       if (x == null || y == null || value == null) return null;
                       return (
-                        <text x={x + 6} y={y + 5} fill="#374151" fontSize={12}>
+                        <text x={x + 6} y={y + 5} fontSize={12} style={{ fill: "var(--fg)" }}>
                           {value}%
                         </text>
                       );
@@ -616,7 +616,7 @@ const DashboardHome: React.FC = () => {
         );
       case "kpiTrend":
         return (
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+          <div className="surface-card rounded-xl p-6 shadow-sm border">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">Evolución de KPIs</h3>
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={kpiTrend}>
@@ -638,7 +638,7 @@ const DashboardHome: React.FC = () => {
 
   const renderLayoutModal = () => (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-full overflow-y-auto p-6">
+      <div className="surface-card rounded-2xl shadow-2xl w-full max-w-4xl max-h-full overflow-y-auto p-6 border">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-xl font-semibold text-gray-900">Configurar layout de paneles</h3>
@@ -665,7 +665,7 @@ const DashboardHome: React.FC = () => {
                   className={`text-left rounded-xl border p-4 transition shadow-sm ${
                     draftLayoutCode === preset.code
                       ? "border-blue-500 ring-2 ring-blue-200 bg-blue-50/60"
-                      : "border-gray-200 hover:border-blue-300"
+                      : "hover:border-blue-300"
                   }`}
                 >
                   <p className="text-sm font-semibold text-gray-800">{preset.title}</p>
@@ -694,8 +694,8 @@ const DashboardHome: React.FC = () => {
                   onDragOver={(e) => handleDragOver(e, panel.id)}
                   onDrop={handleDragEnd}
                   onDragEnd={handleDragEnd}
-                  className={`rounded-xl border bg-white p-4 shadow-sm cursor-grab transition ${
-                    draggingPanel === panel.id ? "border-blue-400 shadow-md" : "border-gray-200 hover:border-blue-300"
+                  className={`rounded-xl border surface-card p-4 shadow-sm cursor-grab transition ${
+                    draggingPanel === panel.id ? "border-blue-400 shadow-md" : "hover:border-blue-300"
                   }`}
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -766,7 +766,7 @@ const DashboardHome: React.FC = () => {
             type="button"
             onClick={handleSaveLayout}
             disabled={layoutSaving}
-            className="px-5 py-2 rounded-lg bg-blue-600 text-white font-semibold shadow hover:bg-blue-700 disabled:opacity-50"
+            className="px-5 py-2 rounded-lg btn-primary font-semibold shadow disabled:opacity-50"
           >
             {layoutSaving ? "Guardando…" : "Guardar cambios"}
           </button>
@@ -784,7 +784,7 @@ const DashboardHome: React.FC = () => {
       </div>
 
       {/* Filtros */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+      <div className="surface-card rounded-xl border shadow-sm p-4">
         <h3 className="text-lg font-semibold text-gray-800 mb-3">Filtros</h3>
         <div className="grid gap-3 md:grid-cols-4">
           <select value={kpiF} onChange={(e) => setKpiF(e.target.value as any)} className="rounded-lg border-gray-200">
@@ -812,10 +812,7 @@ const DashboardHome: React.FC = () => {
               setUserF("Todos");
               setDateF("");
             }}
-            className="px-4 py-2 rounded-lg border border-gray-200 shadow-md hover:shadow-lg active:shadow-inner transition"
-            style={{
-              background: "linear-gradient(to bottom, #ffffff, #f3f4f6)",
-            }}
+            className="px-4 py-2 rounded-lg border text-[color:var(--fg)] hover:border-primary transition"
           >
             Limpiar
           </button>
@@ -844,14 +841,14 @@ const DashboardHome: React.FC = () => {
 
       {/* Paneles fijados */}
       {pinnedPlacements.length > 0 && (
-        <div className="bg-white/80 border border-blue-100 rounded-2xl p-4 shadow-sm">
+        <div className="surface-card border border-blue-100 rounded-2xl p-4 shadow-sm">
           <p className="text-sm font-semibold text-blue-700 mb-3 flex items-center gap-2">
             Paneles fijados <span className="text-xs text-blue-500">(siempre visibles)</span>
           </p>
           <div className="grid grid-cols-12 gap-4">
             {pinnedPlacements.map((placement) => (
               <div key={`pin-${placement.id}`} className={`${SPAN_CLASSES[placement.colSpan as PanelSpan] || "col-span-12"} lg:sticky lg:top-4`}>
-                <div className="rounded-2xl ring-2 ring-blue-200 bg-white shadow-lg p-2">{renderPanelContent(placement.id)}</div>
+                <div className="rounded-2xl ring-2 ring-blue-200 surface-card shadow-lg p-2">{renderPanelContent(placement.id)}</div>
               </div>
             ))}
           </div>

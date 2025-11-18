@@ -135,7 +135,7 @@ const KPI: React.FC = () => {
                 <path d="M4 5h16M7 12h10M10 19h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
               </svg>
             </button>
-            <button onClick={openCreate} className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 shadow">
+            <button onClick={openCreate} className="px-4 py-2 rounded-lg btn-primary shadow">
               Nuevo KPI
             </button>
           </div>
@@ -333,7 +333,7 @@ const KPI: React.FC = () => {
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-2">
               <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg border border-gray-200">Cancelar</button>
-              <button onClick={saveKPI} className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">Guardar</button>
+              <button onClick={saveKPI} className="px-4 py-2 rounded-lg btn-primary">Guardar</button>
             </div>
           </div>
         </div>

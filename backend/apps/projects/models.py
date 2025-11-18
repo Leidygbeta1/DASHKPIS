@@ -61,3 +61,42 @@ class PanelLayoutPreference(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['id_usuario', 'id_proyecto'], name='uniq_panel_layout_usuario_proyecto')
         ]
+
+
+class Reporte(models.Model):
+    class Meta:
+        managed = False  # tabla ya existe en Azure SQL
+        db_table = 'reportes'
+        verbose_name = 'Reporte'
+        verbose_name_plural = 'Reportes'
+
+    id_reporte = models.AutoField(primary_key=True)
+    titulo = models.CharField(max_length=200)
+    id_usuario = models.IntegerField()  # autor
+    filtros = models.JSONField(default=dict, blank=True)
+    resumen = models.JSONField(default=dict, blank=True)
+    items = models.JSONField(default=list, blank=True)
+    secciones = models.JSONField(default=list, blank=True)
+    nota = models.TextField(null=True, blank=True)
+    formato = models.JSONField(default=dict, blank=True)
+    nombre_archivo = models.CharField(max_length=120, null=True, blank=True)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+
+
+class ReporteSnapshot(models.Model):
+    class Meta:
+        db_table = 'reportes_snapshots'
+        verbose_name = 'Reporte (snapshot)'
+        verbose_name_plural = 'Reportes (snapshots)'
+
+    id_reporte = models.AutoField(primary_key=True)
+    titulo = models.CharField(max_length=200)
+    id_usuario = models.IntegerField()
+    filtros = models.JSONField(default=dict, blank=True)
+    resumen = models.JSONField(default=dict, blank=True)
+    items = models.JSONField(default=list, blank=True)
+    secciones = models.JSONField(default=list, blank=True)
+    nota = models.TextField(null=True, blank=True)
+    formato = models.JSONField(default=dict, blank=True)
+    nombre_archivo = models.CharField(max_length=120, null=True, blank=True)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)

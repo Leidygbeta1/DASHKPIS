@@ -4,6 +4,12 @@ from .views import (
     ProyectoRetrieveUpdateDestroyView,
     PanelLayoutPreferenceView,
     ReportExportPDFView,
+    ReportItemsView,
+    ReportListCreateView,
+    ReportRetrieveDeleteView,
+    ReportPDFDetailView,
+    ReportExportCSVView,
+    ReportCSVDetailView,
 )
 from .views_tareas import (
     TareaListView, TareaCreateView, TareaUpdateView,
@@ -16,6 +22,12 @@ urlpatterns = [
     path('proyectos/<int:id_proyecto>/', ProyectoRetrieveUpdateDestroyView.as_view(), name='proyecto-rud'),
     path('dashboard/layout/', PanelLayoutPreferenceView.as_view(), name='dashboard-layout'),
     path('reportes/export/pdf/', ReportExportPDFView.as_view(), name='report-export-pdf'),
+    path('reportes/items/', ReportItemsView.as_view(), name='report-items'),
+    path('reportes/', ReportListCreateView.as_view(), name='report-list-create'),
+    path('reportes/<int:id_reporte>/', ReportRetrieveDeleteView.as_view(), name='report-rd'),
+    path('reportes/<int:id_reporte>/pdf/', ReportPDFDetailView.as_view(), name='report-pdf'),
+    path('reportes/export/csv/', ReportExportCSVView.as_view(), name='report-export-csv'),
+    path('reportes/<int:id_reporte>/csv/', ReportCSVDetailView.as_view(), name='report-csv'),
     # Tareas
     path('proyectos/<int:id_proyecto>/tareas/', TareaListView.as_view(), name='tarea-list'),
     path('tareas/', TareaCreateView.as_view(), name='tarea-create'),

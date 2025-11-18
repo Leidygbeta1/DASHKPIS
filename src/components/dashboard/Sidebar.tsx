@@ -42,13 +42,16 @@ const Sidebar: React.FC<Props> = ({ onNavigate, className }) => {
   ];
 
   return (
-    <aside className={className ?? 'w-64 h-full bg-white shadow-sm border-r border-gray-200'}>
-      <div className="p-6">
+    <aside
+      className={className ?? 'w-64 h-full shadow-sm border-r'}
+      style={{ backgroundColor: 'var(--card)', borderColor: 'color-mix(in oklab, var(--fg) 12%, transparent)' }}
+    >
+      <div className="p-6" style={{ color: 'var(--fg)' }}>
         <div className="flex items-center mb-8">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center mr-3">
+          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center mr-3">
             <span className="text-white text-lg">✓</span>
           </div>
-          <span className="text-xl font-bold text-gray-900">DashKPIs</span>
+          <span className="text-xl font-bold" style={{ color: 'var(--fg)' }}>DashKPIs</span>
         </div>
 
         <nav>
@@ -67,7 +70,7 @@ const Sidebar: React.FC<Props> = ({ onNavigate, className }) => {
                     }`
                   }
                 >
-                  <span className="mr-3 text-gray-500">{item.icon}</span>
+                  <span className="mr-3" style={{ color: 'var(--muted)' }}>{item.icon}</span>
                   <span className="font-medium">{item.name}</span>
                 </NavLink>
               </li>
@@ -80,7 +83,7 @@ const Sidebar: React.FC<Props> = ({ onNavigate, className }) => {
         <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-100">
           <h4 className="font-semibold text-blue-900 mb-1">¿Necesitas ayuda?</h4>
           <p className="text-sm text-blue-700 mb-3">Consulta la guía del proyecto.</p>
-          <button className="w-full bg-blue-600 text-white py-2 px-4 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors shadow">
+          <button className="w-full btn-primary py-2 px-4 rounded-md text-sm font-medium transition-colors shadow">
             Ver Guía
           </button>
         </div>

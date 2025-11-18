@@ -4,10 +4,98 @@
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
+  /* Theme tokens */
+  --bg: #f8fafc; /* slate-50 */
+  --fg: #0f172a; /* slate-900 */
+  --card: #ffffff;
+  --muted: #475569; /* slate-600 */
+  --primary: #2563eb; /* blue-600 */
 }
 
 body {
   margin: 0;
   min-height: 100vh;
-  background-color: #f8fafc;
+  background-color: var(--bg);
+  color: var(--fg);
 }
+
+/* Dark mode variables via .dark class on <html> */
+.dark {
+  --bg: #0b1220; /* near-slate-950 */
+  --fg: #f8fafc; /* almost white for better contrast */
+  --card: #0f172a; /* slate-900 */
+  --muted: #cbd5e1; /* slate-300 for readable muted text */
+}
+
+/* A couple of utility helpers using variables */
+.surface-card {
+  background-color: var(--card);
+  border-color: color-mix(in oklab, var(--fg) 12%, transparent);
+}
+
+::selection {
+  background: color-mix(in oklab, var(--primary) 30%, transparent);
+}
+
+/* Focus ring accent */
+:where(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--primary) 75%, transparent);
+  outline-offset: 2px;
+}
+
+/* Primary helpers so we can use the chosen primary without touching Tailwind config */
+.bg-primary { background-color: var(--primary) !important; color: #fff !important; }
+.text-primary { color: var(--primary) !important; }
+.border-primary { border-color: var(--primary) !important; }
+.btn-primary { background-color: var(--primary) !important; color: #fff !important; }
+.btn-primary:hover { filter: brightness(0.95); }
+
+/* Dark-mode accessibility overrides for legacy Tailwind grays */
+.dark .text-gray-900,
+.dark .text-gray-800 { color: #ffffff !important; }
+.dark .text-gray-700,
+.dark .text-gray-600,
+.dark .text-gray-500,
+.dark .text-gray-400 { color: #e5e7eb !important; }
+.dark .text-gray-300,
+.dark .text-gray-200,
+.dark .text-gray-100 { color: #f1f5f9 !important; }
+
+/* Slate token equivalents */
+.dark .text-slate-900,
+.dark .text-slate-800 { color: #ffffff !important; }
+.dark .text-slate-700,
+.dark .text-slate-600,
+.dark .text-slate-500,
+.dark .text-slate-400 { color: #e5e7eb !important; }
+.dark .text-slate-300,
+.dark .text-slate-200,
+.dark .text-slate-100 { color: #f1f5f9 !important; }
+
+/* Background/border fixes to avoid white patches in dark mode */
+.dark .bg-white,
+.dark .bg-gray-50,
+.dark .bg-gray-100,
+.dark .bg-slate-50,
+.dark .bg-slate-100 { background-color: var(--card) !important; }
+.dark .hover\:bg-gray-50:hover,
+.dark .hover\:bg-gray-100:hover,
+.dark .hover\:bg-slate-50:hover { background-color: color-mix(in oklab, #fff 7%, transparent) !important; }
+
+.dark .border-gray-100,
+.dark .border-gray-200,
+.dark .border-gray-300,
+.dark .border-slate-100,
+.dark .border-slate-200,
+.dark .border-slate-300 { border-color: color-mix(in oklab, #ffffff 18%, transparent) !important; }
+
+/* divide utility override for tables */
+.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) { border-color: color-mix(in oklab, #ffffff 18%, transparent) !important; }
+
+/* Optional helper to allow primary-colored hover borders */
+.hover\:border-primary:hover { border-color: var(--primary) !important; }
+
+/* Primary soft backgrounds for badges/highlights (work in both themes) */
+.bg-primary-soft { background-color: color-mix(in oklab, var(--primary) 18%, transparent) !important; }
+.hover\:bg-primary-soft:hover { background-color: color-mix(in oklab, var(--primary) 26%, transparent) !important; }
+.bg-primary-softer { background-color: color-mix(in oklab, var(--primary) 12%, transparent) !important; }

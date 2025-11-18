@@ -1,5 +1,7 @@
-﻿import React, { useMemo, useState } from 'react';
-import { exportReportPdf } from '../services/reports';
+﻿import React, { useEffect, useMemo, useState } from 'react';
+import { exportReportPdf, fetchReportItems, createReport, exportReportCsv, listReports, downloadReportPdf, downloadReportCsv } from '../services/reports';
+import type { ReportRecord } from '../services/reports';
+import { useUser } from '../context/UserContext';
 
 type ReportStatus = 'on-track' | 'at-risk' | 'delayed';
 
@@ -79,7 +81,8 @@ const IconReport = ({ className }: IconProps) => (
   </svg>
 );
 
-const progressItems: ProgressItem[] = [
+// Datos de ejemplo iniciales (se reemplazarán por datos del backend)
+const progressItemsSeed: ProgressItem[] = [
   {
     id: 'KPI-021',
     initiative: 'Adopcion plataforma mobile',
@@ -154,7 +157,7 @@ const progressItems: ProgressItem[] = [
   },
 ];
 
-const milestoneTimeline: Milestone[] = [
+const milestoneTimelineSeed: Milestone[] = [
   {
     title: 'Kick-off y baseline',
     description: 'Metodologia y metas aprobadas por PMO.',
@@ -238,12 +241,21 @@ const initialFilters = {
 };
 
 const Reportes: React.FC = () => {
+  const { user } = useUser();
   const [filters, setFilters] = useState(initialFilters);
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportingCsv, setExportingCsv] = useState(false);
   const [exportAlert, setExportAlert] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
   const [showFiltersPanel, setShowFiltersPanel] = useState(false);
   const [draftFilters, setDraftFilters] = useState(filters);
   const [filterAlert, setFilterAlert] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
+  const [myReports, setMyReports] = useState<ReportRecord[]>([]);
+  const [loadingMyReports, setLoadingMyReports] = useState(false);
+  const [myReportsError, setMyReportsError] = useState<string | null>(null);
+
+  // Estado proveniente del backend
+  const [items, setItems] = useState<ProgressItem[]>(progressItemsSeed);
+  const [milestones, setMilestones] = useState<Milestone[]>(milestoneTimelineSeed);
 
   const [formatConfig, setFormatConfig] = useState({
     mostrarFiltros: true,
@@ -254,8 +266,8 @@ const Reportes: React.FC = () => {
     piePagina: "DashKPI - Universidad Piloto de Colombia",
   });
 
-  const teams = useMemo(() => ['Todos', ...Array.from(new Set(progressItems.map((item) => item.team)))], []);
-  const owners = useMemo(() => ['Todos', ...Array.from(new Set(progressItems.map((item) => item.owner)))], []);
+  const teams = useMemo(() => ['Todos', ...Array.from(new Set(items.map((item) => item.team)))], [items]);
+  const owners = useMemo(() => ['Todos', ...Array.from(new Set(items.map((item) => item.owner)))], [items]);
   const activeFilterChips = useMemo(() => {
 
     const chips: string[] = [];
@@ -279,7 +291,7 @@ const Reportes: React.FC = () => {
     setShowFiltersPanel(false);
   };
 
-  const referenceDate = useMemo(() => new Date('2024-03-31T00:00:00Z'), []); // Fixed baseline while backend is pending
+  const referenceDate = useMemo(() => new Date(), []);
 
   const filteredProgress = useMemo(() => {
     const periodToDays: Record<string, number> = {
@@ -288,7 +300,7 @@ const Reportes: React.FC = () => {
       'Ultimo semestre': 180,
     };
 
-    return progressItems.filter((item) => {
+  return items.filter((item) => {
       if (filters.status !== 'Todos' && item.status !== filters.status) {
         return false;
       }
@@ -311,7 +323,7 @@ const Reportes: React.FC = () => {
       const diff = (referenceDate.getTime() - updatedAt.getTime()) / (1000 * 60 * 60 * 24);
       return diff >= 0 && diff <= days;
     });
-  }, [filters, referenceDate]);
+  }, [filters, referenceDate, items]);
 
   const totals = useMemo(() => {
     if (!filteredProgress.length) {
@@ -430,6 +442,51 @@ const Reportes: React.FC = () => {
   };
 }, [filters, filteredProgress, totals, formatConfig]);
 
+  // Cargar datos desde el backend cuando cambian los filtros
+  useEffect(() => {
+    let ignore = false;
+    async function load() {
+      try {
+        const data = await fetchReportItems({
+          period: filters.period,
+          status: String(filters.status),
+          team: filters.team,
+          owner: filters.owner,
+          search: filters.search,
+        });
+        if (ignore) return;
+        const mapped: ProgressItem[] = (data.items || []).map((it: any) => ({
+          id: String(it.id),
+          initiative: String(it.initiative || ''),
+          owner: String(it.owner || ''),
+          team: String(it.team || ''),
+          status: (it.status || 'on-track') as ReportStatus,
+          progress: Number(it.progress || 0),
+          delta: Number(it.delta || 0),
+          updatedAt: String(it.updatedAt || ''),
+          dueDate: String(it.dueDate || ''),
+          scope: String(it.scope || ''),
+        }));
+        setItems(mapped);
+        const mappedMilestones: Milestone[] = (data.milestones || []).map((m: any) => ({
+          title: String(m.title || ''),
+          description: String(m.description || ''),
+          owner: String(m.owner || ''),
+          target: String(m.target || ''),
+          status: (m.status || 'in-progress') as MilestoneStatus,
+          completion: Number(m.completion || 0),
+        }));
+        setMilestones(mappedMilestones.length ? mappedMilestones : milestoneTimelineSeed);
+      } catch (e: any) {
+        setFilterAlert({ tone: 'error', message: typeof e?.message === 'string' ? e.message : 'No se pudo cargar el reporte' });
+      } finally {
+        // noop
+      }
+    }
+    load();
+    return () => { ignore = true; };
+  }, [filters]);
+
 
 
   const handleExportPdf = async () => {
@@ -458,6 +515,68 @@ const Reportes: React.FC = () => {
     }
   };
 
+  const handleGenerateReport = async () => {
+    if (!filteredProgress.length) {
+      setFilterAlert({ tone: 'error', message: 'No hay datos para generar un reporte con los filtros seleccionados.' });
+      return;
+    }
+    try {
+      if (!user?.id_usuario) throw new Error('Usuario no autenticado.');
+      const payload = { ...exportPayload, id_usuario: user.id_usuario } as any;
+      const created = await createReport(payload);
+      setFilterAlert({ tone: 'success', message: `Reporte creado: ${created.titulo}` });
+      // refresh list
+      await loadMyReports();
+    } catch (e: any) {
+      setFilterAlert({ tone: 'error', message: typeof e?.message === 'string' ? e.message : 'No se pudo crear el reporte' });
+    }
+  };
+
+  const handleExportCsv = async () => {
+    if (!filteredProgress.length) {
+      setExportAlert({ tone: 'error', message: 'No hay datos para exportar con los filtros seleccionados.' });
+      return;
+    }
+    try {
+      setExportAlert(null);
+      setExportingCsv(true);
+      const blob = await exportReportCsv(exportPayload);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `${exportPayload.nombre_archivo || 'reporte'}.csv`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      setExportAlert({ tone: 'success', message: 'Reporte CSV generado correctamente.' });
+    } catch (error: any) {
+      const message = typeof error?.message === 'string' && error.message.trim() ? error.message.trim() : 'No se pudo generar el CSV.';
+      setExportAlert({ tone: 'error', message });
+    } finally {
+      setExportingCsv(false);
+    }
+  };
+
+  const loadMyReports = async () => {
+    if (!user?.id_usuario) return;
+    try {
+      setLoadingMyReports(true);
+      setMyReportsError(null);
+      const records = await listReports({ id_usuario: user.id_usuario });
+      setMyReports(records);
+    } catch (err: any) {
+      setMyReportsError(typeof err?.message === 'string' ? err.message : 'No se pudieron cargar tus reportes.');
+    } finally {
+      setLoadingMyReports(false);
+    }
+  };
+
+  useEffect(() => {
+    loadMyReports();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id_usuario]);
+
   return (
     <>
       <div className="p-6 space-y-6">
@@ -481,8 +600,14 @@ const Reportes: React.FC = () => {
             <button className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:border-slate-300">
               <IconShare className="h-4 w-4" /> Compartir borrador
             </button>
-            <button className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:border-slate-300">
-              <IconDownload className="h-4 w-4" /> Exportar CSV
+            <button
+              onClick={handleExportCsv}
+              disabled={exportingCsv}
+              className={`inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium ${
+                exportingCsv ? 'text-slate-400 border-slate-200' : 'text-slate-600 hover:border-slate-300'
+              }`}
+            >
+              <IconDownload className="h-4 w-4" /> {exportingCsv ? 'Generando CSV…' : 'Exportar CSV'}
             </button>
             <button
               onClick={handleExportPdf}
@@ -493,7 +618,7 @@ const Reportes: React.FC = () => {
             >
               <IconDownload className="h-4 w-4" /> {exportingPdf ? 'Generando PDF…' : 'Exportar PDF'}
             </button>
-            <button className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-blue-700">
+            <button onClick={handleGenerateReport} className="inline-flex items-center gap-2 rounded-lg btn-primary px-4 py-2 text-sm font-medium shadow">
               <IconReport className="h-4 w-4" /> Generar reporte
             </button>
           </div>
@@ -512,7 +637,7 @@ const Reportes: React.FC = () => {
       )}
 
       {activeFilterChips.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 text-xs rounded-xl border border-slate-100 bg-white px-4 py-3 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2 text-xs rounded-xl border surface-card px-4 py-3 shadow-sm">
           {activeFilterChips.map((chip) => (
             <span key={chip} className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600">
               {chip}
@@ -541,7 +666,7 @@ const Reportes: React.FC = () => {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+  <div className="rounded-2xl border shadow-sm p-4 surface-card">
           <p className="text-xs font-medium uppercase text-slate-400">Promedio de avance</p>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-3xl font-semibold text-slate-900">{`${totals.average}%`}</span>
@@ -553,7 +678,7 @@ const Reportes: React.FC = () => {
           </div>
           <p className="mt-2 text-sm text-slate-500">Actualizado {formatDate(referenceDate.toISOString())}</p>
         </div>
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+  <div className="rounded-2xl border shadow-sm p-4 surface-card">
           <p className="text-xs font-medium uppercase text-slate-400">Iniciativas en objetivo</p>
           <div className="mt-3 flex items-center justify-between">
             <div>
@@ -563,7 +688,7 @@ const Reportes: React.FC = () => {
             <div className="text-sm text-green-600 font-medium">{`${totals.completionRatio}%`}</div>
           </div>
         </div>
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+  <div className="rounded-2xl border shadow-sm p-4 surface-card">
           <p className="text-xs font-medium uppercase text-slate-400">Alertas activas</p>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-3xl font-semibold text-slate-900">{totals.atRisk + totals.delayed}</span>
@@ -576,7 +701,7 @@ const Reportes: React.FC = () => {
             />
           </div>
         </div>
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+  <div className="rounded-2xl border shadow-sm p-4 surface-card">
           <p className="text-xs font-medium uppercase text-slate-400">Proxima entrega</p>
           {totals.nextDue ? (
             <div className="mt-3 space-y-1">
@@ -592,7 +717,7 @@ const Reportes: React.FC = () => {
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 space-y-6">
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+          <div className="rounded-2xl border shadow-sm p-5 surface-card">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">Avance consolidado</h2>
@@ -603,11 +728,11 @@ const Reportes: React.FC = () => {
                 <button className="rounded-full bg-slate-900 px-3 py-1 text-white">Grafica</button>
               </div>
             </div>
-            <div className="mt-6 h-48 rounded-xl border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center relative overflow-hidden">
+            <div className="mt-6 h-48 rounded-xl border border-dashed surface-card flex items-center justify-center relative overflow-hidden">
               <div className="absolute inset-8 flex items-end justify-between gap-2">
                 {previewTrend.map((value, index) => (
                   <div key={index} className="flex flex-col items-center gap-2 text-xs text-slate-500">
-                    <div className="w-10 h-full max-h-36 rounded-full bg-white shadow-sm border border-slate-100 flex items-end justify-center">
+                    <div className="w-10 h-full max-h-36 rounded-full surface-card shadow-sm border flex items-end justify-center">
                       <div className="w-3 rounded-full bg-blue-500" style={{ height: `${value}%` }} />
                     </div>
                     <span>{`S${index + 1}`}</span>
@@ -618,7 +743,7 @@ const Reportes: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+          <div className="rounded-2xl border shadow-sm p-5 surface-card">
             <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">Linea de tiempo de hitos</h2>
@@ -627,7 +752,7 @@ const Reportes: React.FC = () => {
               <button className="text-sm font-medium text-blue-600 hover:text-blue-700">Agregar hito</button>
             </div>
             <div className="space-y-4">
-              {milestoneTimeline.map((milestone) => (
+              {milestones.map((milestone) => (
                 <div key={milestone.title} className="flex gap-4">
                   <div className="flex flex-col items-center">
                     <div
@@ -661,7 +786,7 @@ const Reportes: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm">
+          <div className="rounded-2xl border shadow-sm surface-card">
             <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">Detalle de iniciativas</h2>
@@ -731,15 +856,84 @@ const Reportes: React.FC = () => {
           </div>
         </div>
 
-        <div className="space-y-6">
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+  <div className="space-y-6">
+          {/* Mis reportes (snapshots) */}
+          <div className="rounded-2xl border shadow-sm p-5 surface-card">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-slate-900">Mis reportes</h2>
+              <button onClick={loadMyReports} className="text-sm font-medium text-blue-600 hover:text-blue-700">Actualizar</button>
+            </div>
+            <p className="text-sm text-slate-500 mt-1">Reportes que has generado. Puedes descargarlos en PDF o CSV.</p>
+            {myReportsError && (
+              <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{myReportsError}</div>
+            )}
+            <div className="mt-4 space-y-3">
+              {loadingMyReports ? (
+                <div className="text-sm text-slate-500">Cargando…</div>
+              ) : myReports.length === 0 ? (
+                <div className="text-sm text-slate-500">Aún no has generado reportes.</div>
+              ) : (
+                myReports.map((rep) => (
+                  <div key={rep.id_reporte} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 p-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{rep.titulo}</p>
+                      <p className="text-xs text-slate-500">Creado: {new Date(rep.fecha_creacion).toLocaleString()}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:border-slate-300"
+                        onClick={async () => {
+                          try {
+                            const blob = await downloadReportPdf(rep.id_reporte);
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `${rep.nombre_archivo || 'reporte'}.pdf`;
+                            document.body.appendChild(a);
+                            a.click();
+                            a.remove();
+                            URL.revokeObjectURL(url);
+                          } catch (err) {
+                            setExportAlert({ tone: 'error', message: 'No se pudo descargar el PDF del reporte.' });
+                          }
+                        }}
+                      >
+                        PDF
+                      </button>
+                      <button
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:border-slate-300"
+                        onClick={async () => {
+                          try {
+                            const blob = await downloadReportCsv(rep.id_reporte);
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `${rep.nombre_archivo || 'reporte'}.csv`;
+                            document.body.appendChild(a);
+                            a.click();
+                            a.remove();
+                            URL.revokeObjectURL(url);
+                          } catch (err) {
+                            setExportAlert({ tone: 'error', message: 'No se pudo descargar el CSV del reporte.' });
+                          }
+                        }}
+                      >
+                        CSV
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+          <div className="surface-card rounded-2xl border shadow-sm p-5">
   <h2 className="text-lg font-semibold text-slate-900">Secciones incluidas</h2>
   <p className="text-sm text-slate-500 mb-4">Personaliza el contenido del reporte antes de compartir.</p>
   <div className="space-y-3">
     {reportSections.map((section) => (
       <label
         key={section.key}
-        className="flex items-start gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3 hover:border-blue-200"
+        className="flex items-start gap-3 rounded-xl border surface-card p-3 hover:border-blue-200"
       >
         <input type="checkbox" defaultChecked className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
         <div>
@@ -760,7 +954,7 @@ const Reportes: React.FC = () => {
 </div>
 
 {/* ⭐⭐⭐ PANEL NUEVO INSERTADO AQUÍ ⭐⭐⭐ */}
-<div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+<div className="rounded-2xl border shadow-sm p-5 surface-card">
   <h2 className="text-lg font-semibold text-slate-900">Formato del reporte</h2>
   <p className="text-sm text-slate-500 mb-4">Configura cómo se exportará el PDF.</p>
 
@@ -840,7 +1034,7 @@ const Reportes: React.FC = () => {
 </div>
 {/* ⭐⭐⭐ FIN PANEL NUEVO ⭐⭐⭐ */}
 
-<div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+<div className="rounded-2xl border shadow-sm p-5 surface-card">
   <div className="flex items-center justify-between">
     <h2 className="text-lg font-semibold text-slate-900">Programaciones</h2>
     <button className="text-sm font-medium text-blue-600 hover:text-blue-700">Crear</button>
@@ -857,7 +1051,7 @@ const Reportes: React.FC = () => {
   </div>
 </div>
 
-<div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+<div className="surface-card rounded-2xl border shadow-sm p-5">
   <h2 className="text-lg font-semibold text-slate-900">Acciones recomendadas</h2>
   <ul className="mt-3 space-y-2 text-sm text-slate-600">
     <li className="flex gap-2">
@@ -880,7 +1074,7 @@ const Reportes: React.FC = () => {
 
 {showFiltersPanel && (
   <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-4">
-    <div className="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl space-y-5">
+    <div className="w-full max-w-3xl rounded-2xl surface-card border p-6 shadow-2xl space-y-5">
 
       <div className="flex items-center justify-between">
         <div>

@@ -13,11 +13,13 @@ export interface KPI {
 
 export type KPICreate = Omit<KPI, 'id_kpi' | 'fecha_creacion'>;
 
+import { fetchJsonCached } from './http';
+
 export async function listKPIs(params?: { id_proyecto?: number }): Promise<KPI[]> {
   const qs = params?.id_proyecto ? `?id_proyecto=${params.id_proyecto}` : '';
-  const res = await fetch(`/api/kpis/${qs}`);
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  const url = `/api/kpis/${qs}`;
+  // Cache briefly; KPIs don’t change every second in most views
+  return fetchJsonCached<KPI[]>(url, { ttlMs: 20000, persist: true });
 }
 
 export async function createKPI(payload: KPICreate): Promise<KPI> {

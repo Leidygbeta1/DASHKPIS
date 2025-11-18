@@ -1,0 +1,24 @@
+config:
+  target: "http://127.0.0.1:8000"
+  phases:
+    - duration: 60
+      arrivalRate: 10
+    - duration: 120
+      arrivalRate: 30
+    - duration: 60
+      arrivalRate: 50
+  defaults:
+    headers:
+      Accept: application/json
+scenarios:
+  - name: dashboard-flows
+    flow:
+      - get:
+          url: "/api/dashboard/layout"
+      - get:
+          url: "/api/kpis?page=1&page_size=50"
+      - get:
+          url: "/api/proyectos"
+      - get:
+          url: "/api/proyectos/1/tareas"
+      - think: 1

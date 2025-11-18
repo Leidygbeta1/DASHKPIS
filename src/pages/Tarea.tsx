@@ -424,7 +424,7 @@ const Tarea: React.FC = () => {
               </button>
             </div>
 
-            <button onClick={openCreate} className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 shadow">
+            <button onClick={openCreate} className="px-4 py-2 rounded-lg btn-primary shadow">
               Nueva tarea
             </button>
           </div>
@@ -719,7 +719,7 @@ const Tarea: React.FC = () => {
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-2">
               <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg border border-gray-200">Cancelar</button>
-              <button onClick={saveTask} className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700" disabled={loading}>
+              <button onClick={saveTask} className="px-4 py-2 rounded-lg btn-primary" disabled={loading}>
                 {loading ? 'Guardando…' : 'Guardar'}
               </button>
             </div>
@@ -895,7 +895,7 @@ const Tarea: React.FC = () => {
                   >
                     <input ref={timeHorasRef} name="horas" type="number" step="0.25" min="0" placeholder="Horas" className="basis-28 md:flex-1 rounded-lg border-gray-200" />
                     <input name="nota" type="text" placeholder="Nota" className="basis-full md:flex-[2] rounded-lg border-gray-200" />
-                    <button type="submit" className="basis-full md:basis-auto px-3 py-2 rounded-lg bg-blue-600 text-white">Agregar</button>
+                    <button type="submit" className="basis-full md:basis-auto px-3 py-2 rounded-lg btn-primary">Agregar</button>
                   </form>
                   <ul className="mt-3 space-y-2 text-sm max-h-60 overflow-y-auto pr-1">
                     {detalles.tiempo.length === 0 && <li className="text-gray-500">Sin registros para el filtro.</li>}

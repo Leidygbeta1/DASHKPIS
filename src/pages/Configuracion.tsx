@@ -13,6 +13,7 @@ import {
   type FormatPreference,
 } from "../services/preferences";
 import { updateUserProfile } from "../services/api"; // Asegúrate de que esta función esté implementada
+import { useTheme } from "../context/ThemeContext";
 
 type CurrencyOption = {
   code: FormatPreference["codigo_moneda"];
@@ -46,6 +47,7 @@ const formatCurrencyPreview = (code: FormatPreference["codigo_moneda"]) => {
 };
 
 const Configuracion: React.FC = () => {
+  const { mode: themeMode, setMode: setThemeMode, primary, setPrimary } = useTheme();
   // Inicializa 'foto' con la imagen actual del usuario si existe
   const currentUser = useMemo(() => getCurrentUser(), []);
   // Si el usuario tiene imagen base64, úsala; si no, null
@@ -244,7 +246,7 @@ const Configuracion: React.FC = () => {
       </div>
 
       {/* ================== PERFIL ================== */}
-      <div className="bg-white rounded-xl shadow-lg border border-gray-200 hover:shadow-xl transition-shadow p-6">
+  <div className="rounded-xl shadow-lg border hover:shadow-xl transition-shadow p-6 surface-card">
         <h2 className="text-xl font-semibold text-gray-900 mb-6">👤 Perfil</h2>
 
         {/* Upload foto */}
@@ -267,14 +269,14 @@ const Configuracion: React.FC = () => {
             <button
               type="button"
               onClick={handleUploadClick}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700"
+              className="px-4 py-2 rounded-lg text-sm btn-primary"
             >
               Subir nueva foto
             </button>
             <button
               type="button"
               onClick={() => setFoto(null)}
-              className="ml-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm hover:bg-gray-300"
+              className="ml-2 px-4 py-2 rounded-lg text-sm border text-[color:var(--fg)] hover:border-primary"
             >
               Restablecer
             </button>
@@ -311,21 +313,84 @@ const Configuracion: React.FC = () => {
           <button
             type="submit"
             onClick={handleSaveProfile}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+            className="px-4 py-2 rounded-lg btn-primary"
           >
             Guardar cambios
           </button>
           <button
             type="button"
-            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+            className="px-4 py-2 rounded-lg border text-[color:var(--fg)] hover:border-primary"
           >
             Cancelar
           </button>
         </div>
       </div>
 
+      {/* ================== TEMA Y COLORES ================== */}
+  <div className="rounded-xl shadow-lg border hover:shadow-xl transition-shadow p-6 surface-card">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">🎨 Tema y colores</h2>
+            <p className="text-sm text-gray-500">Elige modo claro/oscuro o usa el del sistema. Personaliza el color primario.</p>
+          </div>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2">
+          <div>
+            <p className="text-sm font-semibold text-gray-800 mb-2">Modo de color</p>
+            <div className="flex items-center gap-3">
+              {([
+                { key: 'system', label: 'Sistema' },
+                { key: 'light', label: 'Claro' },
+                { key: 'dark', label: 'Oscuro' },
+              ] as const).map(opt => (
+                <label key={opt.key} className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2">
+                  <input
+                    type="radio"
+                    name="theme-mode"
+                    checked={themeMode === opt.key}
+                    onChange={() => setThemeMode(opt.key as any)}
+                  />
+                  <span className="text-sm text-gray-700">{opt.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-sm font-semibold text-gray-800 mb-2">Color primario</p>
+            <div className="flex flex-wrap gap-2">
+              {['#2563eb', '#4f46e5', '#16a34a', '#dc2626', '#f59e0b', '#0ea5e9', '#a855f7'].map(color => (
+                <button
+                  key={color}
+                  type="button"
+                  onClick={() => setPrimary(color)}
+                  className="w-8 h-8 rounded-full border border-gray-200"
+                  style={{ backgroundColor: color, outline: primary === color ? '3px solid #111827' : undefined }}
+                  aria-label={color}
+                />
+              ))}
+            </div>
+            <p className="text-xs text-gray-500 mt-2">Actual: <span className="font-mono">{primary}</span></p>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <p className="text-xs text-gray-500 mb-1">Vista previa</p>
+          <div className="rounded-xl border border-dashed border-gray-300 p-4">
+            <button
+              type="button"
+              className="px-4 py-2 rounded-lg text-white"
+              style={{ backgroundColor: 'var(--primary)' }}
+            >
+              Botón primario
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* ================== FORMATOS ================== */}
-      <div className="bg-white rounded-xl shadow-lg border border-gray-200 hover:shadow-xl transition-shadow p-6">
+  <div className="rounded-xl shadow-lg border hover:shadow-xl transition-shadow p-6 surface-card">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">📅 Formatos de fechas y moneda</h2>
@@ -482,7 +547,7 @@ const Configuracion: React.FC = () => {
                 setFormatSaving(false);
               }
             }}
-            className={`px-5 py-2 rounded-lg text-white ${formatSaving ? "bg-indigo-300" : "bg-indigo-600 hover:bg-indigo-700"}`}
+            className={`px-5 py-2 rounded-lg text-white ${formatSaving ? "bg-gray-300 cursor-not-allowed" : "btn-primary"}`}
           >
             {formatSaving ? "Guardando…" : "Guardar cambios"}
           </button>
@@ -490,7 +555,7 @@ const Configuracion: React.FC = () => {
       </div>
 
       {/* ================== ELIMINAR CUENTA ================== */}
-      <div className="bg-white rounded-xl shadow-lg border border-gray-200 hover:shadow-xl transition-shadow p-6">
+  <div className="rounded-xl shadow-lg border hover:shadow-xl transition-shadow p-6 surface-card">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">🗑️ Eliminar cuenta</h2>
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 rounded-md mb-4">
           <p className="font-medium">
@@ -529,7 +594,7 @@ const Configuracion: React.FC = () => {
       </div>
 
       {/* ================== NOTIFICACIONES ================== */}
-      <div className="bg-white rounded-xl shadow-lg border border-gray-200 hover:shadow-xl transition-shadow p-6">
+  <div className="surface-card rounded-xl shadow-lg border hover:shadow-xl transition-shadow p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-2">🔔 Notificaciones</h2>
         <p className="text-sm text-gray-500">Define qué tipos de alertas deseas recibir y por qué canales.</p>
 
@@ -574,7 +639,7 @@ const Configuracion: React.FC = () => {
                 <div className="text-sm text-gray-500">No hay canales configurables.</div>
               )}
               {notifGroups.canales.map((c) => (
-                <div key={c.tipo} className="border border-gray-200 rounded-lg p-3 bg-gray-50 flex items-start justify-between gap-3">
+                <div key={c.tipo} className="border rounded-lg p-3 surface-card flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-medium text-gray-900">{c.nombre}</p>
                     <p className="text-xs text-gray-500">{c.descripcion}</p>
@@ -598,7 +663,7 @@ const Configuracion: React.FC = () => {
                 <div className="text-sm text-gray-500">No hay tipos de notificación disponibles.</div>
               )}
               {notifGroups.tipos.map((c) => (
-                <div key={c.tipo} className="border border-gray-200 rounded-lg p-3 bg-gray-50 flex items-start justify-between gap-3">
+                <div key={c.tipo} className="border rounded-lg p-3 surface-card flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-medium text-gray-900">{c.nombre}</p>
                     <p className="text-xs text-gray-500">{c.descripcion}</p>
@@ -636,7 +701,7 @@ const Configuracion: React.FC = () => {
             type="button"
             onClick={handleNotifSave}
             disabled={savingNotif || !currentUser}
-            className={`px-5 py-2 rounded-lg text-white ${savingNotif ? "bg-indigo-300" : "bg-indigo-600 hover:bg-indigo-700"}`}
+            className={`px-5 py-2 rounded-lg text-white ${savingNotif ? "bg-gray-300 cursor-not-allowed" : "btn-primary"}`}
           >
             {savingNotif ? "Guardando…" : "Guardar cambios"}
           </button>

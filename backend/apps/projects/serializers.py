@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Proyecto, PanelLayoutPreference
+from .models import Proyecto, PanelLayoutPreference, Reporte, ReporteSnapshot
 from apps.accounts.models import Usuario
 from .layouts import PANEL_IDS, LAYOUT_PRESETS, DEFAULT_LAYOUT_CODE, safe_default_panel_state
 
@@ -133,4 +133,27 @@ class ReportExportSerializer(serializers.Serializer):
 
     # ⭐ ESTO ES LO QUE FALTABA ⭐
     # Backend acepta un bloque COMPLETO de configuración
+    formato = serializers.DictField(required=False)
+
+
+class ReporteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ReporteSnapshot
+        fields = [
+            'id_reporte', 'titulo', 'id_usuario', 'filtros', 'resumen', 'items',
+            'secciones', 'nota', 'formato', 'nombre_archivo', 'fecha_creacion'
+        ]
+        read_only_fields = ('id_reporte', 'fecha_creacion')
+
+
+class ReporteCreateSerializer(serializers.Serializer):
+    """Acepta el mismo payload de exportación + id_usuario para persistir un snapshot."""
+    id_usuario = serializers.IntegerField()
+    titulo = serializers.CharField(max_length=200)
+    filtros = serializers.DictField(child=serializers.CharField(allow_blank=True), required=False)
+    resumen = serializers.DictField(child=serializers.CharField(allow_blank=True), required=False)
+    items = serializers.ListField(child=serializers.DictField(child=serializers.CharField(allow_blank=True)), required=False)
+    secciones = serializers.ListField(child=serializers.DictField(child=serializers.CharField(allow_blank=True)), required=False)
+    nota = serializers.CharField(required=False, allow_blank=True)
+    nombre_archivo = serializers.CharField(required=False, allow_blank=True, max_length=120)
     formato = serializers.DictField(required=False)

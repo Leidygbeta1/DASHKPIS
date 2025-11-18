@@ -7,7 +7,7 @@ const DashboardLayout: React.FC = () => {
   const [openMobile, setOpenMobile] = useState(false);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen flex" style={{ backgroundColor: 'var(--bg)', color: 'var(--fg)' }}>
       {/* Sidebar móvil (drawer) */}
       <div className={`fixed inset-0 z-40 lg:hidden ${openMobile ? '' : 'pointer-events-none'}`}>
         <div
@@ -28,9 +28,9 @@ const DashboardLayout: React.FC = () => {
       </div>
 
       {/* Contenido */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0" style={{ backgroundColor: 'var(--bg)', color: 'var(--fg)' }}>
         <Header onMenuClick={() => setOpenMobile(true)} />
-        <main className="flex-1 p-4 sm:p-6">
+        <main className="flex-1 p-4 sm:p-6" style={{ backgroundColor: 'var(--bg)' }}>
           <Outlet />
         </main>
       </div>

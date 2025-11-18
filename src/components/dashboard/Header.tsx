@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getCurrentUser } from "../../services/session";
 import { listNotifications, markNotificationRead, type NotificationItem } from "../../services/notifications";
+import { useTheme } from "../../context/ThemeContext";
 
 type Props = { onMenuClick?: () => void };
 
@@ -43,7 +44,7 @@ const Header: React.FC<Props> = ({ onMenuClick }) => {
     }
   };
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
+  const { mode, effectiveMode, setMode } = useTheme();
 
   // Poll de notificaciones: cada 20s
   useEffect(() => {
@@ -68,8 +69,9 @@ const Header: React.FC<Props> = ({ onMenuClick }) => {
   }, [user, latestSeenId]);
 
   const toggleDarkMode = () => {
-    setDarkMode(!darkMode);
-    document.documentElement.classList.toggle("dark", !darkMode);
+    // Cycle: system -> dark -> light -> system
+    const next = mode === 'system' ? 'dark' : mode === 'dark' ? 'light' : 'system';
+    setMode(next);
   };
 
   const handleLogout = () => {
@@ -89,7 +91,13 @@ const Header: React.FC<Props> = ({ onMenuClick }) => {
     userImage = "/assets/avatar-placeholder.png";
   }
   return (
-    <header className="sticky top-0 z-20 bg-white/80 backdrop-blur border-b border-gray-200">
+    <header
+      className="sticky top-0 z-20 backdrop-blur border-b"
+      style={{
+        backgroundColor: 'var(--card)',
+        borderColor: 'color-mix(in oklab, var(--fg) 12%, transparent)'
+      }}
+    >
       <div className="px-4 sm:px-6 py-3 flex items-center gap-3">
         {/* Botón hamburguesa móvil */}
         <button
@@ -165,25 +173,25 @@ const Header: React.FC<Props> = ({ onMenuClick }) => {
               )}
             </button>
             {showNotifications && (
-              <div className="absolute right-0 mt-2 w-80 bg-white shadow-lg rounded-lg p-3 border border-gray-200">
+              <div className="absolute right-0 mt-2 w-80 surface-card border shadow-lg rounded-lg p-3">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-semibold">Notificaciones</p>
                   <button className="text-xs text-blue-600 hover:underline" onClick={() => navigate('/dashboard/reportes')}>Ver todo</button>
                 </div>
-                <ul className="mt-2 text-sm text-gray-700 max-h-80 overflow-auto">
+                <ul className="mt-2 text-sm max-h-80 overflow-auto">
                   {notifications.length === 0 && (
                     <li className="text-gray-500 py-6 text-center">No tienes notificaciones</li>
                   )}
                   {notifications.map(n => (
-                    <li key={n.id_notificacion} className={`p-2 rounded-lg cursor-pointer ${n.leida ? 'hover:bg-gray-50' : 'bg-blue-50 hover:bg-blue-100'}`} onClick={() => onClickNotification(n)}>
+                    <li key={n.id_notificacion} className={`p-2 rounded-lg cursor-pointer ${n.leida ? 'hover:bg-gray-50' : 'bg-primary-soft hover:bg-primary-soft'}`} onClick={() => onClickNotification(n)}>
                       <div className="flex items-start gap-2">
                         <span className="mt-0.5">{n.leida ? '🔔' : '🟦'}</span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
-                            <p className="font-medium text-gray-900 truncate">{n.titulo}</p>
-                            <span className="text-[10px] text-gray-500 whitespace-nowrap">{new Date(n.fecha).toLocaleString()}</span>
+                            <p className="font-medium truncate" style={{ color: 'var(--fg)' }}>{n.titulo}</p>
+                            <span className="text-[10px] whitespace-nowrap text-[color:var(--muted)]">{new Date(n.fecha).toLocaleString()}</span>
                           </div>
-                          {n.mensaje && <p className="text-gray-600 truncate">{n.mensaje}</p>}
+                          {n.mensaje && <p className="truncate" style={{ color: 'var(--fg)' }}>{n.mensaje}</p>}
                         </div>
                       </div>
                     </li>
@@ -197,8 +205,9 @@ const Header: React.FC<Props> = ({ onMenuClick }) => {
           <button
             className="p-2 rounded-lg hover:bg-gray-100 text-gray-600"
             onClick={toggleDarkMode}
+            title={`Tema: ${mode === 'system' ? 'Sistema' : mode === 'dark' ? 'Oscuro' : 'Claro'}`}
           >
-            {darkMode ? (
+            {effectiveMode === 'dark' ? (
               // 🌙 Luna
               <svg
                 className="w-6 h-6"
@@ -255,12 +264,12 @@ const Header: React.FC<Props> = ({ onMenuClick }) => {
           </div>
           {/* Toast de notificación nueva */}
           {toast && (
-            <div className="fixed top-16 right-4 z-30 max-w-xs bg-white border border-gray-200 shadow-lg rounded-lg p-3 animate-[fadeIn_200ms_ease-in]">
+            <div className="fixed top-16 right-4 z-30 max-w-xs surface-card border shadow-lg rounded-lg p-3 animate-[fadeIn_200ms_ease-in]">
               <div className="flex items-start gap-2">
                 <span>🔔</span>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm text-gray-900 truncate">{toast.title}</p>
-                  {toast.message && <p className="text-xs text-gray-600 truncate">{toast.message}</p>}
+                  <p className="font-semibold text-sm truncate" style={{ color: 'var(--fg)' }}>{toast.title}</p>
+                  {toast.message && <p className="text-xs truncate" style={{ color: 'var(--fg)' }}>{toast.message}</p>}
                   <div className="mt-2 flex gap-2">
                     <button
                       className="text-xs text-blue-600 hover:underline"

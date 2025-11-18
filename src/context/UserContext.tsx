@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { CurrentUser, getCurrentUser } from "../services/session";
+import type { CurrentUser } from "../services/session";
+import { getCurrentUser } from "../services/session";
 
 type UserContextType = {
   user: CurrentUser | null;

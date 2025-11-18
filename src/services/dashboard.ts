@@ -41,13 +41,12 @@ function buildLayoutQuery(id_usuario: number, id_proyecto = 0) {
   return params.toString();
 }
 
+import { fetchJsonCached } from './http';
+
 export async function fetchDashboardLayout(id_usuario: number, id_proyecto = 0): Promise<PanelLayoutPreference> {
   const query = buildLayoutQuery(id_usuario, id_proyecto);
-  const res = await fetch(`/api/dashboard/layout/?${query}`);
-  if (!res.ok) {
-    throw new Error(await res.text());
-  }
-  return res.json();
+  const url = `/api/dashboard/layout/?${query}`;
+  return fetchJsonCached<PanelLayoutPreference>(url, { ttlMs: 60000, persist: true });
 }
 
 export type SaveLayoutPayload = {

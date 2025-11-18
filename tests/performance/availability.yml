@@ -1,0 +1,22 @@
+config:
+  target: "http://127.0.0.1:8000"
+  phases:
+    - duration: 60    # warm-up
+      arrivalRate: 10
+    - duration: 300   # fase estable (30 req/s)
+      arrivalRate: 30
+    - duration: 30    # spike previo a la falla
+      arrivalRate: 50
+    - duration: 180   # mantener carga mientras apagas una instancia
+      arrivalRate: 40
+  defaults:
+    headers:
+      Accept: application/json
+scenarios:
+  - name: availability-check
+    flow:
+      - get: { url: "/api/dashboard/layout" }
+      - get: { url: "/api/kpis?page=1&page_size=50" }
+      - get: { url: "/api/proyectos" }
+      - get: { url: "/api/proyectos/1/tareas" }
+      - think: 1
