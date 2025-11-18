@@ -14,7 +14,6 @@ class ProyectoSerializer(serializers.ModelSerializer):
     def validate_id_pm(self, value):
         if value is None:
             return value
-        # ensure pm exists and is active
         if not Usuario.objects.filter(id_usuario=value, activo=True).exists():
             raise serializers.ValidationError('El PM seleccionado no existe o no está activo.')
         return value
@@ -52,9 +51,11 @@ class PanelLayoutPreferenceSerializer(serializers.ModelSerializer):
     def validate_panel_state(self, value):
         if not isinstance(value, dict):
             raise serializers.ValidationError('panel_state debe ser un objeto')
+
         panels = value.get('panels')
         if not isinstance(panels, list) or not panels:
             raise serializers.ValidationError('panel_state.panels debe ser una lista')
+
         seen = set()
         for panel in panels:
             pid = panel.get('id')
@@ -63,15 +64,18 @@ class PanelLayoutPreferenceSerializer(serializers.ModelSerializer):
             if pid in seen:
                 raise serializers.ValidationError('panel duplicado detectado')
             seen.add(pid)
+
             try:
                 order = int(panel.get('order', 0))
                 col_span = int(panel.get('colSpan', 12))
             except (TypeError, ValueError):
                 raise serializers.ValidationError('order y colSpan deben ser enteros')
+
             if order < 0:
                 raise serializers.ValidationError('order debe ser positivo')
             if col_span not in (4, 6, 8, 12):
                 raise serializers.ValidationError('colSpan no soportado')
+
         return value
 
     def validate_pinned_panels(self, value):
@@ -79,12 +83,14 @@ class PanelLayoutPreferenceSerializer(serializers.ModelSerializer):
             return []
         if not isinstance(value, list):
             raise serializers.ValidationError('pinned_panels debe ser una lista')
+
         clean = []
         for pid in value:
             if pid not in PANEL_IDS:
                 raise serializers.ValidationError(f'Panel inválido para pin: {pid}')
             if pid not in clean:
                 clean.append(pid)
+
         return clean
 
     def to_representation(self, instance):
@@ -96,10 +102,20 @@ class PanelLayoutPreferenceSerializer(serializers.ModelSerializer):
         return data
 
 
+# ==========================================================
+#             SERIALIZER CORRECTO DEL REPORTE
+# ==========================================================
+
 class ReportExportSerializer(serializers.Serializer):
     titulo = serializers.CharField(max_length=200)
-    filtros = serializers.DictField(child=serializers.CharField(allow_blank=True), required=False)
-    resumen = serializers.DictField(child=serializers.CharField(allow_blank=True), required=False)
+    filtros = serializers.DictField(
+        child=serializers.CharField(allow_blank=True),
+        required=False
+    )
+    resumen = serializers.DictField(
+        child=serializers.CharField(allow_blank=True),
+        required=False
+    )
     items = serializers.ListField(
         child=serializers.DictField(child=serializers.CharField(allow_blank=True)),
         required=False
@@ -109,4 +125,12 @@ class ReportExportSerializer(serializers.Serializer):
         required=False
     )
     nota = serializers.CharField(required=False, allow_blank=True)
-    nombre_archivo = serializers.CharField(required=False, allow_blank=True, max_length=120)
+    nombre_archivo = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=120
+    )
+
+    # ⭐ ESTO ES LO QUE FALTABA ⭐
+    # Backend acepta un bloque COMPLETO de configuración
+    formato = serializers.DictField(required=False)
