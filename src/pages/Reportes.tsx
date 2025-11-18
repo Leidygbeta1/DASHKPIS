@@ -245,9 +245,19 @@ const Reportes: React.FC = () => {
   const [draftFilters, setDraftFilters] = useState(filters);
   const [filterAlert, setFilterAlert] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
 
+  const [formatConfig, setFormatConfig] = useState({
+    mostrarFiltros: true,
+    mostrarResumen: true,
+    mostrarItems: true,
+    mostrarSecciones: true,
+    tamanoFuente: 14,
+    piePagina: "DashKPI - Universidad Piloto de Colombia",
+  });
+
   const teams = useMemo(() => ['Todos', ...Array.from(new Set(progressItems.map((item) => item.team)))], []);
   const owners = useMemo(() => ['Todos', ...Array.from(new Set(progressItems.map((item) => item.owner)))], []);
   const activeFilterChips = useMemo(() => {
+
     const chips: string[] = [];
     if (filters.status !== 'Todos') chips.push(`Estado: ${filters.status}`);
     if (filters.team !== 'Todos') chips.push(`Equipo: ${filters.team}`);
@@ -356,44 +366,71 @@ const Reportes: React.FC = () => {
   };
 
   const exportPayload = useMemo(() => {
-    const resumen =
-      filteredProgress.length > 0
-        ? {
-            'Progreso promedio': `${totals.average}%`,
-            'Variacion promedio': `${totals.trend}%`,
-            'KPIs en objetivo': `${totals.onTrack}`,
-            'KPIs en riesgo': `${totals.atRisk}`,
-            'KPIs retrasados': `${totals.delayed}`,
-          }
-        : undefined;
+  const resumen =
+    filteredProgress.length > 0
+      ? {
+          'Progreso promedio': `${totals.average}%`,
+          'Variacion promedio': `${totals.trend}%`,
+          'KPIs en objetivo': `${totals.onTrack}`,
+          'KPIs en riesgo': `${totals.atRisk}`,
+          'KPIs retrasados': `${totals.delayed}`,
+        }
+      : undefined;
 
-    return {
-      titulo: `Reporte de KPIs - ${filters.period}`,
-      filtros: {
-        Periodo: filters.period,
-        Estado: filters.status,
-        Equipo: filters.team,
-        Responsable: filters.owner,
-        Busqueda: filters.search || 'Sin filtro',
-      },
-      resumen,
-      items: filteredProgress.slice(0, 5).map((item) => ({
-        initiative: item.initiative,
-        owner: item.owner,
-        status: item.status,
-        progress: `${item.progress}%`,
-        delta: `${item.delta}%`,
-        due: item.dueDate,
-        updated: item.updatedAt,
-      })),
-      secciones: reportSections.map((section) => ({
-        label: section.label,
-        description: section.description,
-      })),
-      nota: 'Generado automáticamente desde DashKPIs.',
-      nombre_archivo: `reporte-${filters.period.replace(/\s+/g, '-').toLowerCase()}`,
-    };
-  }, [filters, filteredProgress, totals]);
+  return {
+    titulo: `Reporte de KPIs - ${filters.period}`,
+
+    // ⭐ NUEVO BLOQUE (formato del reporte)
+    formato: {
+      mostrarFiltros: formatConfig.mostrarFiltros,
+      mostrarResumen: formatConfig.mostrarResumen,
+      mostrarItems: formatConfig.mostrarItems,
+      mostrarSecciones: formatConfig.mostrarSecciones,
+      tamanoFuente: formatConfig.tamanoFuente,
+      piePagina: formatConfig.piePagina,
+    },
+
+    // 🔵 FILTROS — solo si el usuario quiere mostrarlos
+    filtros: formatConfig.mostrarFiltros
+      ? {
+          Periodo: filters.period,
+          Estado: filters.status,
+          Equipo: filters.team,
+          Responsable: filters.owner,
+          Busqueda: filters.search || 'Sin filtro',
+        }
+      : undefined,
+
+    // 🔵 RESUMEN — solo si está habilitado
+    resumen: formatConfig.mostrarResumen ? resumen : undefined,
+
+    // 🔵 ITEMS — depende del toggle
+    items: formatConfig.mostrarItems
+      ? filteredProgress.slice(0, 5).map((item) => ({
+          initiative: item.initiative,
+          owner: item.owner,
+          status: item.status,
+          progress: `${item.progress}%`,
+          delta: `${item.delta}%`,
+          due: item.dueDate,
+          updated: item.updatedAt,
+        }))
+      : undefined,
+
+    // 🔵 SECCIONES — controlado por el switch
+    secciones: formatConfig.mostrarSecciones
+      ? reportSections.map((section) => ({
+          label: section.label,
+          description: section.description,
+        }))
+      : undefined,
+
+    nota: 'Generado automáticamente desde DashKPIs.',
+    nombre_archivo: `reporte-${filters.period.replace(/\s+/g, '-').toLowerCase()}`,
+  };
+}, [filters, filteredProgress, totals, formatConfig]);
+
+
 
   const handleExportPdf = async () => {
     if (!filteredProgress.length) {
@@ -696,182 +733,268 @@ const Reportes: React.FC = () => {
 
         <div className="space-y-6">
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-            <h2 className="text-lg font-semibold text-slate-900">Secciones incluidas</h2>
-            <p className="text-sm text-slate-500 mb-4">Personaliza el contenido del reporte antes de compartir.</p>
-            <div className="space-y-3">
-              {reportSections.map((section) => (
-                <label
-                  key={section.key}
-                  className="flex items-start gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3 hover:border-blue-200"
-                >
-                  <input type="checkbox" defaultChecked className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">{section.label}</p>
-                    <p className="text-xs text-slate-500">{section.description}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
-            {totals.topPerformer && (
-              <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-700">
-                <p className="font-semibold">Sugerencia automatica</p>
-                <p className="mt-1">
-                  Destaca a {totals.topPerformer.owner} por el progreso de "{totals.topPerformer.initiative}" ({`${totals.topPerformer.progress}%`}).
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">Programaciones</h2>
-              <button className="text-sm font-medium text-blue-600 hover:text-blue-700">Crear</button>
-            </div>
-            <p className="text-sm text-slate-500 mt-1">Configura envios automaticos a las partes interesadas.</p>
-            <div className="mt-4 space-y-3 text-sm text-slate-700">
-              {scheduledReports.map((item) => (
-                <div key={item.id} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                  <p className="font-semibold text-slate-900">{item.name}</p>
-                  <p className="text-xs text-slate-500">{`${item.cadence} - Siguiente envio ${formatDate(item.nextRun)}`}</p>
-                  <p className="mt-1 text-xs text-slate-500">Destinatarios: {item.deliverTo}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-            <h2 className="text-lg font-semibold text-slate-900">Acciones recomendadas</h2>
-            <ul className="mt-3 space-y-2 text-sm text-slate-600">
-              <li className="flex gap-2">
-                <span className="mt-1 h-2 w-2 rounded-full bg-amber-500" />
-                Revisar planes de accion para iniciativas en riesgo (KPI-014, KPI-041).
-              </li>
-              <li className="flex gap-2">
-                <span className="mt-1 h-2 w-2 rounded-full bg-blue-500" />
-                Confirmar entregables con equipo de Producto antes del 05 Abr 2024.
-              </li>
-              <li className="flex gap-2">
-                <span className="mt-1 h-2 w-2 rounded-full bg-green-500" />
-                Compartir resumen con PMO y solicitar retroalimentacion.
-              </li>
-            </ul>
-          </div>
+  <h2 className="text-lg font-semibold text-slate-900">Secciones incluidas</h2>
+  <p className="text-sm text-slate-500 mb-4">Personaliza el contenido del reporte antes de compartir.</p>
+  <div className="space-y-3">
+    {reportSections.map((section) => (
+      <label
+        key={section.key}
+        className="flex items-start gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3 hover:border-blue-200"
+      >
+        <input type="checkbox" defaultChecked className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+        <div>
+          <p className="text-sm font-semibold text-slate-900">{section.label}</p>
+          <p className="text-xs text-slate-500">{section.description}</p>
         </div>
-      </div>
+      </label>
+    ))}
+  </div>
+
+  {totals.topPerformer && (
+    <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-700">
+      <p className="font-semibold">Sugerencia automatica</p>
+      <p className="mt-1">
+        Destaca a {totals.topPerformer.owner} por el progreso de "{totals.topPerformer.initiative}" ({`${totals.topPerformer.progress}%`}).        </p>
     </div>
+  )}
+</div>
 
-      {showFiltersPanel && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-semibold text-slate-900">Filtros avanzados</h3>
-                <p className="text-sm text-slate-500">Combina criterios antes de aplicar al reporte.</p>
-              </div>
-              <button
-                onClick={() => setShowFiltersPanel(false)}
-                className="rounded-full border border-slate-200 p-2 hover:bg-slate-100 text-slate-500"
-              >
-                ✕
-              </button>
-            </div>
+{/* ⭐⭐⭐ PANEL NUEVO INSERTADO AQUÍ ⭐⭐⭐ */}
+<div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+  <h2 className="text-lg font-semibold text-slate-900">Formato del reporte</h2>
+  <p className="text-sm text-slate-500 mb-4">Configura cómo se exportará el PDF.</p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <label className="text-sm">
-                <span className="text-xs uppercase tracking-wide text-slate-400">Periodo</span>
-                <select
-                  value={draftFilters.period}
-                  onChange={(e) => handleDraftFilter('period', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-700 focus:border-blue-400 focus:outline-none"
-                >
-                  {periodOptions.map((option) => (
-                    <option key={option}>{option}</option>
-                  ))}
-                </select>
-              </label>
+  <div className="space-y-3">
 
-              <label className="text-sm">
-                <span className="text-xs uppercase tracking-wide text-slate-400">Estado del KPI</span>
-                <select
-                  value={draftFilters.status}
-                  onChange={(e) => handleDraftFilter('status', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-700 focus:border-blue-400 focus:outline-none"
-                >
-                  <option value="Todos">Todos</option>
-                  <option value="on-track">En objetivo</option>
-                  <option value="at-risk">En riesgo</option>
-                  <option value="delayed">Retrasado</option>
-                </select>
-              </label>
+    <label className="flex items-center gap-3">
+      <input
+        type="checkbox"
+        checked={formatConfig.mostrarFiltros}
+        onChange={(e) =>
+          setFormatConfig({ ...formatConfig, mostrarFiltros: e.target.checked })
+        }
+      />
+      <span className="text-sm text-slate-700">Mostrar filtros en el reporte</span>
+    </label>
 
-              <label className="text-sm">
-                <span className="text-xs uppercase tracking-wide text-slate-400">Equipo</span>
-                <select
-                  value={draftFilters.team}
-                  onChange={(e) => handleDraftFilter('team', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-700 focus:border-blue-400 focus:outline-none"
-                >
-                  {teams.map((option) => (
-                    <option key={option}>{option}</option>
-                  ))}
-                </select>
-              </label>
+    <label className="flex items-center gap-3">
+      <input
+        type="checkbox"
+        checked={formatConfig.mostrarResumen}
+        onChange={(e) =>
+          setFormatConfig({ ...formatConfig, mostrarResumen: e.target.checked })
+        }
+      />
+      <span className="text-sm text-slate-700">Mostrar resumen general</span>
+    </label>
 
-              <label className="text-sm">
-                <span className="text-xs uppercase tracking-wide text-slate-400">Responsable</span>
-                <select
-                  value={draftFilters.owner}
-                  onChange={(e) => handleDraftFilter('owner', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-700 focus:border-blue-400 focus:outline-none"
-                >
-                  {owners.map((option) => (
-                    <option key={option}>{option}</option>
-                  ))}
-                </select>
-              </label>
+    <label className="flex items-center gap-3">
+      <input
+        type="checkbox"
+        checked={formatConfig.mostrarItems}
+        onChange={(e) =>
+          setFormatConfig({ ...formatConfig, mostrarItems: e.target.checked })
+        }
+      />
+      <span className="text-sm text-slate-700">Mostrar detalle de KPIs</span>
+    </label>
 
-              <label className="text-sm md:col-span-2">
-                <span className="text-xs uppercase tracking-wide text-slate-400">Busqueda por texto</span>
-                <input
-                  type="text"
-                  value={draftFilters.search}
-                  onChange={(e) => handleDraftFilter('search', e.target.value)}
-                  placeholder="Nombre de KPI o iniciativa…"
-                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-700 focus:border-blue-400 focus:outline-none"
-                />
-              </label>
-            </div>
+    <label className="flex items-center gap-3">
+      <input
+        type="checkbox"
+        checked={formatConfig.mostrarSecciones}
+        onChange={(e) =>
+          setFormatConfig({ ...formatConfig, mostrarSecciones: e.target.checked })
+        }
+      />
+      <span className="text-sm text-slate-700">Mostrar secciones del reporte</span>
+    </label>
 
-            <div className="flex flex-wrap justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setDraftFilters(initialFilters);
-                }}
-                className="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50"
-              >
-                Restablecer
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowFiltersPanel(false)}
-                className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={applyDraftFilters}
-                className="px-5 py-2 rounded-lg bg-blue-600 text-white font-semibold shadow hover:bg-blue-700"
-              >
-                Aplicar filtros
-              </button>
-            </div>
-          </div>
+    <label className="block text-sm">
+      <span className="text-xs uppercase text-slate-500">Tamaño de letra</span>
+      <input
+        type="number"
+        min={10}
+        max={26}
+        value={formatConfig.tamanoFuente}
+        onChange={(e) =>
+          setFormatConfig({ ...formatConfig, tamanoFuente: Number(e.target.value) })
+        }
+        className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
+      />
+    </label>
+
+    <label className="block text-sm">
+      <span className="text-xs uppercase text-slate-500">Pie de página</span>
+      <input
+        type="text"
+        value={formatConfig.piePagina}
+        onChange={(e) =>
+          setFormatConfig({ ...formatConfig, piePagina: e.target.value })
+        }
+        className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
+      />
+    </label>
+
+  </div>
+</div>
+{/* ⭐⭐⭐ FIN PANEL NUEVO ⭐⭐⭐ */}
+
+<div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+  <div className="flex items-center justify-between">
+    <h2 className="text-lg font-semibold text-slate-900">Programaciones</h2>
+    <button className="text-sm font-medium text-blue-600 hover:text-blue-700">Crear</button>
+  </div>
+  <p className="text-sm text-slate-500 mt-1">Configura envios automaticos a las partes interesadas.</p>
+  <div className="mt-4 space-y-3 text-sm text-slate-700">
+    {scheduledReports.map((item) => (
+      <div key={item.id} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+        <p className="font-semibold text-slate-900">{item.name}</p>
+        <p className="text-xs text-slate-500">{`${item.cadence} - Siguiente envio ${formatDate(item.nextRun)}`}</p>
+        <p className="mt-1 text-xs text-slate-500">Destinatarios: {item.deliverTo}</p>
+      </div>
+    ))}
+  </div>
+</div>
+
+<div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+  <h2 className="text-lg font-semibold text-slate-900">Acciones recomendadas</h2>
+  <ul className="mt-3 space-y-2 text-sm text-slate-600">
+    <li className="flex gap-2">
+      <span className="mt-1 h-2 w-2 rounded-full bg-amber-500" />
+      Revisar planes de accion para iniciativas en riesgo (KPI-014, KPI-041).
+    </li>
+    <li className="flex gap-2">
+      <span className="mt-1 h-2 w-2 rounded-full bg-blue-500" />
+      Confirmar entregables con equipo de Producto antes del 05 Abr 2024.
+    </li>
+    <li className="flex gap-2">
+      <span className="mt-1 h-2 w-2 rounded-full bg-green-500" />
+      Compartir resumen con PMO y solicitar retroalimentacion.
+    </li>
+  </ul>
+</div>
+</div>
+</div>
+</div>
+
+{showFiltersPanel && (
+  <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-4">
+    <div className="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl space-y-5">
+
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-xl font-semibold text-slate-900">Filtros avanzados</h3>
+          <p className="text-sm text-slate-500">Combina criterios antes de aplicar al reporte.</p>
         </div>
-      )}
-    </>
-  );
+        <button
+          onClick={() => setShowFiltersPanel(false)}
+          className="rounded-full border border-slate-200 p-2 hover:bg-slate-100 text-slate-500"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <label className="text-sm">
+          <span className="text-xs uppercase tracking-wide text-slate-400">Periodo</span>
+          <select
+            value={draftFilters.period}
+            onChange={(e) => handleDraftFilter('period', e.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-700 focus:border-blue-400 focus:outline-none"
+          >
+            {periodOptions.map((option) => (
+              <option key={option}>{option}</option>
+            ))}
+          </select>
+        </label>
+
+        <label className="text-sm">
+          <span className="text-xs uppercase tracking-wide text-slate-400">Estado del KPI</span>
+          <select
+            value={draftFilters.status}
+            onChange={(e) => handleDraftFilter('status', e.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-700 focus:border-blue-400 focus:outline-none"
+          >
+            <option value="Todos">Todos</option>
+            <option value="on-track">En objetivo</option>
+            <option value="at-risk">En riesgo</option>
+            <option value="delayed">Retrasado</option>
+          </select>
+        </label>
+
+        <label className="text-sm">
+          <span className="text-xs uppercase tracking-wide text-slate-400">Equipo</span>
+          <select
+            value={draftFilters.team}
+            onChange={(e) => handleDraftFilter('team', e.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-700 focus:border-blue-400 focus:outline-none"
+          >
+            {teams.map((option) => (
+              <option key={option}>{option}</option>
+            ))}
+          </select>
+        </label>
+
+        <label className="text-sm">
+          <span className="text-xs uppercase tracking-wide text-slate-400">Responsable</span>
+          <select
+            value={draftFilters.owner}
+            onChange={(e) => handleDraftFilter('owner', e.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-700 focus:border-blue-400 focus:outline-none"
+          >
+            {owners.map((option) => (
+              <option key={option}>{option}</option>
+            ))}
+          </select>
+        </label>
+
+        <label className="text-sm md:col-span-2">
+          <span className="text-xs uppercase tracking-wide text-slate-400">Busqueda por texto</span>
+          <input
+            type="text"
+            value={draftFilters.search}
+            onChange={(e) => handleDraftFilter('search', e.target.value)}
+            placeholder="Nombre de KPI o iniciativa…"
+            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-700 focus:border-blue-400 focus:outline-none"
+          />
+        </label>
+      </div>
+
+      <div className="flex flex-wrap justify-end gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            setDraftFilters(initialFilters);
+          }}
+          className="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50"
+        >
+          Restablecer
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setShowFiltersPanel(false)}
+          className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+        >
+          Cancelar
+        </button>
+
+        <button
+          type="button"
+          onClick={applyDraftFilters}
+          className="px-5 py-2 rounded-lg bg-blue-600 text-white font-semibold shadow hover:bg-blue-700"
+        >
+          Aplicar filtros
+        </button>
+      </div>
+
+    </div>
+  </div>
+)}
+</>
+);
 };
 
 export default Reportes;
+
